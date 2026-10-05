@@ -133,7 +133,12 @@ export function createApp(options: { verifyToken?: TokenVerifier } = {}) {
       authenticated: res.locals.authenticated,
     }),
   );
-  app.get("/api/bootstrap", async (_req, res) => {
+  app.get("/api/bootstrap", async (req, res) => {
+    // Retire the password-era PWA cache without touching household data or Google sessions.
+    if (process.env.NODE_ENV === "production" && req.get("X-Requested-With") === "A-Table" && !req.get("X-Cuisine-Version") && !req.get("Authorization")) {
+      res.set("Clear-Site-Data", '"cache", "storage"');
+      res.clearCookie("session", { path: "/", httpOnly: true, secure: true, sameSite: "strict" });
+    }
     const authenticated = res.locals.authenticated;
     if (!authenticated)
       return res.json({ enabled: authEnabled, authenticated: false });

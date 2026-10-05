@@ -42,6 +42,7 @@ interface Auth {
   plan?: Plan;
 }
 function Login() {
+  const {needRefresh:[needRefresh],updateServiceWorker}=useRegisterSW();
   const [error, setError] = useState(""),
     [pending, setPending] = useState(false),
     client = useQueryClient();
@@ -81,6 +82,7 @@ function Login() {
         <span className="eyebrow">Bienvenue à la maison</span>
         <h2>Retrouvons notre table.</h2>
         <p>Connectez-vous avec le compte Google d’un membre du foyer.</p>
+        {needRefresh && <button type="button" className="button" onClick={()=>void updateServiceWorker(true)}>Actualiser l’application</button>}
         {error && (
           <p className="form-error" role="alert">
             {error}

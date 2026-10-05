@@ -26,6 +26,7 @@ export async function api<T>(
       headers: {
         "Content-Type": "application/json",
         "X-Requested-With": "A-Table",
+        "X-Cuisine-Version": "2",
         ...(token?{Authorization:`Bearer ${token}`} : {}),
       },
       body: body === undefined ? undefined : JSON.stringify(body),
