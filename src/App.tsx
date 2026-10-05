@@ -1,4 +1,4 @@
-import { lazy, Suspense, useState } from "react";
+import { lazy, Suspense, useState, useEffect } from "react";
 import { NavLink, Routes, Route } from "react-router-dom";
 import {
   CalendarDays,
@@ -17,6 +17,7 @@ import { useRegisterSW } from "virtual:pwa-register/react";
 import { AppProvider } from "./hooks/app";
 import { RecipeDetail } from "./components/RecipeDetail";
 import { api } from "./services/api";
+import { loginGoogle, logoutGoogle, observeIdentity } from "./services/firebase";
 import { seasonFor, parisToday } from "../shared/domain";
 import type { Recipe, Settings as FamilySettings, Plan } from "../shared/types";
 import Week from "./pages/Week";
@@ -41,8 +42,7 @@ interface Auth {
   plan?: Plan;
 }
 function Login() {
-  const [password, setPassword] = useState(""),
-    [error, setError] = useState(""),
+  const [error, setError] = useState(""),
     [pending, setPending] = useState(false),
     client = useQueryClient();
   return (
@@ -65,7 +65,9 @@ function Login() {
           setPending(true);
           setError("");
           try {
-            await api("/api/auth/login", "POST", { password });
+            await loginGoogle();
+            const access=await api<{authenticated:boolean}>('/api/auth');
+            if(!access.authenticated){await logoutGoogle();throw new Error('Ce compte Google n’est pas autorisé pour ce foyer.');}
             await client.invalidateQueries();
           } catch (error) {
             setError(
@@ -78,24 +80,14 @@ function Login() {
       >
         <span className="eyebrow">Bienvenue à la maison</span>
         <h2>Retrouvons notre table.</h2>
-        <p>Le même mot de passe pour les appareils du foyer.</p>
-        <label className="field">
-          Mot de passe du foyer
-          <input
-            type="password"
-            autoComplete="current-password"
-            required
-            value={password}
-            onChange={(e) => setPassword(e.target.value)}
-          />
-        </label>
+        <p>Connectez-vous avec le compte Google d’un membre du foyer.</p>
         {error && (
           <p className="form-error" role="alert">
             {error}
           </p>
         )}
         <button className="button" disabled={pending}>
-          {pending ? "Connexion…" : "Entrer dans la cuisine"}
+          {pending ? "Connexion…" : "Continuer avec Google"}
           <ArrowRight size={18} />
         </button>
       </form>
@@ -157,8 +149,8 @@ function Layout() {
             <Routes>
               <Route path="/" element={<Week />} />
               <Route path="/courses" element={<Shopping />} />
-              <Route path="/recettes" element={<Recipes />} />
-              <Route path="/favoris" element={<Recipes favoritesOnly />} />
+              <Route path="/recettes" element={<Recipes key="recipes" />} />
+              <Route path="/favoris" element={<Recipes key="favorites" favoritesOnly />} />
               <Route path="/reglages" element={<Settings />} />
               <Route path="/historique" element={<HistoryPage />} />
               <Route path="/imprimer/:kind" element={<Print />} />
@@ -216,6 +208,12 @@ function Layout() {
 }
 export default function App() {
   const client = useQueryClient();
+  useEffect(()=>{
+    let stop:(()=>void)|undefined;
+    let disposed=false;
+    void observeIdentity(()=>void client.invalidateQueries()).then(unsubscribe=>{if(disposed) unsubscribe(); else stop=unsubscribe;}).catch(()=>{});
+    return ()=>{disposed=true; stop?.();};
+  },[client]);
   const auth = useQuery<Auth, Error>({
     queryKey: ["/api/bootstrap"],
     queryFn: async () => {

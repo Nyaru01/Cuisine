@@ -3,12 +3,15 @@ import { Clock, ChefHat, Users, Check } from "lucide-react";
 import { useApp } from "../hooks/app";
 import { Dialog, FavoriteButton, FoodImage } from "./common";
 import { scaledIngredients, displayQuantity } from "../../shared/domain";
+import { RecipeEditor } from "./RecipeEditor";
 export function RecipeDetail() {
   const { recipeId, recipes, closeRecipe, settings } = useApp();
   const [progress, setProgress] = useState<Record<string, number[]>>({});
+  const [editing,setEditing]=useState(false);
   const completed = progress[recipeId ?? ""] ?? [];
   const recipe = recipes.find((r) => r.id === recipeId);
   if (!recipe) return null;
+  if(editing)return <RecipeEditor key={recipe.id} recipe={recipe} onClose={()=>setEditing(false)} onSaved={()=>setEditing(false)}/>;
   const ingredients = scaledIngredients(recipe, settings.household);
   return (
     <Dialog
@@ -25,6 +28,7 @@ export function RecipeDetail() {
         <FavoriteButton recipe={recipe} />
       </div>
       <div className="detail-facts">
+        {recipe.source==='custom'&&<button className="text-button" onClick={()=>setEditing(true)}>Modifier notre recette</button>}
         <span>
           <Clock size={17} />
           {recipe.preparationTime} min de préparation

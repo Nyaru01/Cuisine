@@ -10,8 +10,10 @@ if (!/^qa_\d+$/.test(schema)) throw new Error("Schéma invalide");
 const url = new URL(process.env.DATABASE_URL!);
 url.searchParams.set("schema", schema);
 process.env.DATABASE_URL = url.toString();
-process.env.FAMILY_PASSWORD = "test-family-password";
-process.env.SESSION_SECRET = "test-only-secret-32-characters-long";
+process.env.FIREBASE_PROJECT_ID = "test-project";
+process.env.LECLERC_INTEGRATION_ENABLED = "true";
+process.env.DRIVE_PROVIDER_MODE = "mock";
+
 process.env.NODE_ENV = "test";
 execFileSync(
   process.execPath,
@@ -22,7 +24,7 @@ await import("../prisma/seed.js");
 const { createApp } = await import("../server/app.js");
 const { db } = await import("../server/db.js");
 test("API PostgreSQL : authentification, génération, verrouillage, remplacement, courses et deux appareils", async () => {
-  const server = createApp().listen(0, "127.0.0.1");
+  const server = createApp({ verifyToken: async(token) => { if (!["test-device1", "test-device2"].includes(token)) throw new Error("Token invalide"); return {uid:token,email:"family@example.test"}; } }).listen(0, "127.0.0.1");
   await once(server, "listening");
   const address = server.address();
   assert.ok(address && typeof address !== "string");
@@ -39,7 +41,7 @@ test("API PostgreSQL : authentification, génération, verrouillage, remplacemen
       headers: {
         "Content-Type": "application/json",
         "X-Requested-With": "A-Table",
-        ...(authenticated ? { Cookie: cookie } : {}),
+        ...(authenticated ? { Authorization: `Bearer ${cookie}` } : {}),
       },
       body: body === undefined ? undefined : JSON.stringify(body),
     });
@@ -58,19 +60,12 @@ test("API PostgreSQL : authentification, génération, verrouillage, remplacemen
     }>("/api/bootstrap");
     assert.equal(anonymous.data.authenticated, false);
     assert.equal(anonymous.data.recipes, undefined);
-    assert.equal(
-      (await request("/api/auth/login", "POST", { password: "bad" })).status,
-      401,
-    );
-    const login = await request("/api/auth/login", "POST", {
-      password: "test-family-password",
-    });
-    assert.equal(login.status, 200);
-    cookie = login.headers.get("set-cookie")!.split(";")[0];
-    assert.ok(login.headers.get("set-cookie")!.includes("HttpOnly"));
+    cookie = "invalid-token";
+    assert.equal((await request("/api/recipes")).status, 401);
+    cookie = "test-device1";
     const forbidden = await fetch(base + "/api/plans/generate", {
       method: "POST",
-      headers: { Cookie: cookie, "Content-Type": "application/json" },
+      headers: { Authorization: `Bearer ${cookie}`, "Content-Type": "application/json" },
       body: "{}",
     });
     assert.equal(forbidden.status, 403);
@@ -150,16 +145,13 @@ test("API PostgreSQL : authentification, génération, verrouillage, remplacemen
       ).status,
       200,
     );
-    const secondLogin = await request("/api/auth/login", "POST", {
-      password: "test-family-password",
-    });
-    const deviceCookie = secondLogin.headers.get("set-cookie")!.split(";")[0];
+    const deviceCookie = "test-device2";
     const secondList = (await fetch(base + `/api/shopping-list/${week}`, {
-      headers: { Cookie: deviceCookie },
+      headers: { Authorization: `Bearer ${deviceCookie}` },
     }).then((r) => r.json())) as ShoppingItem[];
     assert.equal(secondList.find((i) => i.id === item.id)?.checked, true);
     const fresh = (await fetch(base + `/api/plans/${week}`, {
-      headers: { Cookie: deviceCookie },
+      headers: { Authorization: `Bearer ${deviceCookie}` },
     }).then((r) => r.json())) as Plan;
     assert.deepEqual(fresh, plan);
     await request(`/api/favorites/${choices[0].id}`, "POST");
@@ -215,7 +207,29 @@ test("API PostgreSQL : authentification, génération, verrouillage, remplacemen
         .data.household.adults,
       3,
     );
-    await request("/api/auth/logout", "POST");
+    const draft={name:'Notre soupe maison',description:'Recette de test du foyer',preparationTime:10,cookingTime:20,servings:4,difficulty:'Facile',instructions:['Cuire les légumes.','Mixer.'],ingredients:[{name:'Carottes',quantity:400,unit:'g',category:'Fruits et légumes'}],seasons:['automne'],months:[9,10,11],allergens:[],vegetarian:true,childFriendly:true,protein:'légumes',starch:'aucun',light:true};
+    const created=await request<Recipe>('/api/recipes','POST',draft);
+    assert.equal(created.status,201);assert.equal(created.data.source,'custom');assert.equal(created.data.authorUid,'test-device1');
+    assert.equal((await request(`/api/recipes/${created.data.id}`,'PUT',{...draft,name:'Soupe modifiée'})).status,200);
+    assert.equal((await request(`/api/recipes/${catalog.data[0].id}`,'PUT',draft)).status,403);
+    assert.equal((await request('/api/recipes','POST',{...draft,ingredients:[]})).status,400);
+    const stores=(await request<import('../shared/drive.js').DriveStore[]>('/api/drive/leclerc/stores?q=69140')).data;
+    assert.ok(stores[0].id.startsWith('demo-'));
+    assert.equal((await request('/api/drive/leclerc/store','POST',{storeId:stores[0].id,query:'69140'})).status,200);
+    const prepared=(await request<{id:string;proposals:import('../shared/drive.js').DriveProposal[]}>('/api/drive/leclerc/prepare','POST',{week})).data;
+    const selected=prepared.proposals.filter(p=>p.productId).slice(0,2).map(p=>({ingredientId:p.ingredientId,productId:p.productId,quantity:p.quantity}));
+    assert.ok(selected.length>0);
+    const confirm={id:prepared.id,items:selected};
+    assert.equal((await request('/api/drive/leclerc/prepare/confirm','POST',confirm)).status,202);
+    assert.equal((await request('/api/drive/leclerc/prepare/confirm','POST',confirm)).status,202);
+    let job:import('../shared/drive.js').DriveJob;
+    for(let n=0;n<100;n++){job=(await request<import('../shared/drive.js').DriveJob>(`/api/drive/leclerc/jobs/${prepared.id}`)).data;if(job.status!=='adding_to_cart')break;await new Promise(r=>setTimeout(r,20));}
+    assert.equal(job!.status,'completed');assert.equal(job!.success,selected.length);
+    const driveCart=(await request<import('../shared/drive.js').DriveCart>('/api/drive/leclerc/cart')).data;
+    assert.equal(driveCart.totalItems,selected.reduce((s,i)=>s+i.quantity,0));
+    const driveItem=driveCart.items[0];
+    assert.equal((await request(`/api/drive/leclerc/cart/items/${driveItem.productId}`,'PATCH',{quantity:2})).status,200);
+    assert.equal((await request(`/api/drive/leclerc/cart/items/${driveItem.productId}`,'DELETE')).status,200);
   } finally {
     await new Promise<void>((resolve, reject) =>
       server.close((e) => (e ? reject(e) : resolve())),

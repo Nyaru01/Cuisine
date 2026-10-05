@@ -1,4 +1,14 @@
-# À Table ! — Première livraison
+# À Table ! — Livraison et évolutions
+
+## Évolution Firebase, recettes et Drive — 5 octobre 2026
+
+- Firebase : projet cuisine-2af55, connexion Google et domaine Railway autorisés. Accès serveur limité à virgil.czarnecki@gmail.com et melodyvalgrand@gmail.com. Le mot de passe partagé et son endpoint sont supprimés.
+- Recettes : création et modification des recettes du foyer, ingrédients, portions, saisons, allergènes et étapes. Saison courante sélectionnée à l’ouverture ; filtre Mes recettes et intégration aux menus/courses.
+- Drive : démonstration pour 69140 Rillieux-la-Pape, choix du magasin, correspondances et conditionnements, confirmation, progression persistée et panier modifiable. Magasins, produits et prix fictifs.
+- Connecteur réel isolé fourni mais non connecté au compte Leclerc du foyer ; appels réels non validés. Configuration et limites dans LECLERC.md. Commande et paiement restent manuels.
+- Vérification de cette évolution : build/typecheck, lint, 14 tests métier/Drive et scénario API PostgreSQL isolé réussis. Création de recette et préparation du Drive contrôlées dans le navigateur.
+
+Les sections suivantes décrivent la première livraison. Leur authentification par mot de passe est remplacée par Firebase. Les anciens scores Lighthouse, PDFs et 5 tests UI ne mesurent pas cette évolution.
 
 Validation du 5 octobre 2026. Application publiée sur [À Table !](https://cuisine-production-9ac9.up.railway.app), avec PostgreSQL persistant sur Railway. La version locale reste disponible sur `http://127.0.0.1:3001`, avec PostgreSQL local sur `127.0.0.1:55432`.
 

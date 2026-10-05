@@ -6,6 +6,8 @@ export interface Ingredient {
   category: string;
 }
 export interface Recipe {
+  source?: string;
+  authorUid?: string | null;
   id: string;
   name: string;
   description: string;

@@ -12,13 +12,14 @@
     "start": "node dist-server/server/index.js",
     "lint": "eslint .",
     "typecheck": "tsc --noEmit && tsc -p tsconfig.server.json --noEmit",
-    "test": "tsx --test tests/domain.test.ts",
+    "test": "tsx --test tests/domain.test.ts tests/drive.test.ts",
     "test:api": "tsx --test tests/api.test.ts",
     "test:ui": "playwright test",
     "db:migrate": "prisma migrate deploy",
     "db:seed": "prisma db seed",
     "db:local": "tsx scripts/local-db.ts",
-    "postinstall": "prisma generate"
+    "postinstall": "prisma generate",
+    "drive:worker": "tsx services/leclerc-connector/index.ts"
   },
   "prisma": {
     "seed": "tsx prisma/seed.ts"
@@ -26,24 +27,24 @@
   "dependencies": {
     "@prisma/client": "6.19.3",
     "@tanstack/react-query": "^5.90.2",
-    "cookie-parser": "^1.4.7",
     "compression": "^1.8.1",
     "dotenv": "^17.2.3",
     "express": "^5.1.0",
     "express-rate-limit": "^8.1.0",
+    "firebase": "^12.19.0",
     "helmet": "^8.1.0",
+    "jose": "^6.2.12",
     "lucide-react": "^0.544.0",
     "prisma": "6.19.3",
     "react": "^19.1.1",
     "react-dom": "^19.1.1",
     "react-router-dom": "^7.9.3",
-    "zod": "^4.1.11",
-    "tsx": "^4.20.5"
+    "tsx": "^4.20.5",
+    "zod": "^4.1.11"
   },
   "devDependencies": {
     "@eslint/js": "^9.36.0",
     "@playwright/test": "^1.55.1",
-    "@types/cookie-parser": "^1.4.9",
     "@types/compression": "^1.8.1",
     "@types/express": "^5.0.3",
     "@types/node": "^24.5.2",
@@ -56,14 +57,15 @@
     "eslint": "^9.36.0",
     "eslint-plugin-react-hooks": "^5.2.0",
     "globals": "^16.4.0",
+    "sharp": "^0.35.5",
     "typescript": "^5.9.2",
     "typescript-eslint": "^8.44.1",
     "vite": "^7.1.7",
-    "vite-plugin-pwa": "^1.0.3",
-    "sharp": "^0.35.5"
+    "vite-plugin-pwa": "^1.0.3"
   },
   "overrides": {
     "deepmerge-ts": "^8.0.2",
-    "effect": "^3.21.0"
+    "effect": "^3.21.0",
+    "@grpc/grpc-js": "^1.13.6"
   }
 }

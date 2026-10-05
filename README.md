@@ -7,7 +7,7 @@ Une PWA familiale qui compose neuf repas par semaine, adapte les ingrédients au
 - Lundi à vendredi : dîner. Samedi et dimanche : déjeuner et dîner.
 - Génération par score : mois/saison de chaque repas, historique à 28 jours, préférences, favoris, préparation en semaine, diversité des protéines/féculents et succession des plats lourds.
 - Remplacement avec trois alternatives ou « Surprends-moi ». Un seul créneau change ; un créneau verrouillé est protégé par l’API.
-- Catalogue de 60 recettes rédigées et embarquées, avec ingrédients, quantités pour quatre adultes, étapes et allergènes. Le nombre exact est affiché dans l’application et par le seed.
+- Catalogue de 60 recettes rédigées et embarquées, complété par les recettes du foyer : ajout et modification avec ingrédients, portions adultes de référence, étapes, saisons et allergènes. « Mes recettes » rassemble les ajouts partagés par le foyer. Le filtre de saison courante est sélectionné par défaut dans Recettes.
 - Foyer initial : deux adultes et un enfant de cinq ans, soit 2,5 portions adultes. Les coefficients culinaires sont centralisés dans `shared/domain.ts` : moins de 3 ans → 0,35 ; 3–6 → 0,5 ; 7–11 → 0,7 ; 12+ → 1. Les réglages modifient la composition et recalculent les courses actuelles/futures.
 - Courses par rayon, unités normalisées, cases conservées tant que la quantité reste identique. Une quantité modifiée est remise à cocher.
 - Favoris, recherche par plat/ingrédient, filtres saison/rapidité/végétarien/compatibilité, historique des semaines passées et fréquence des recettes planifiées.
@@ -19,7 +19,7 @@ Une PWA familiale qui compose neuf repas par semaine, adapte les ingrédients au
 
 `shared/` : types, catalogue, dates Europe/Paris, portions, agrégation des courses et algorithme ; partagé entre le serveur et les tests.
 
-`server/` : Express 5, validation Zod, gestion centralisée des erreurs, sessions signées en cookie HttpOnly, protection des écritures contre les requêtes intersites et limitation des tentatives de connexion.
+`server/` : Express 5, validation Zod, gestion centralisée des erreurs, vérification des jetons Firebase Google et liste des comptes autorisés, protection des écritures contre les requêtes intersites et limitation des requêtes.
 
 `prisma/` : PostgreSQL, relations SQL foyer/enfants/réglages/exclusions/recettes/ingrédients/plans/repas/favoris/historique/courses, migration SQL versionnée et seed idempotent. Les tableaux de métadonnées des recettes utilisent des tableaux PostgreSQL ; les données métier ne sont pas un document JSON global.
 
@@ -63,12 +63,14 @@ Avec une base PostgreSQL existante, renseigner sa connexion dans `DATABASE_URL` 
 | `DATABASE_URL`    | Connexion PostgreSQL Prisma, obligatoire                            |
 | `PORT`            | Port d’écoute de l’API, fourni par Railway, 3001 en local           |
 | `NODE_ENV`        | `production` sur Railway                                            |
-| `FAMILY_PASSWORD` | Mot de passe commun au foyer, minimum 12 caractères en production   |
-| `SESSION_SECRET`  | Secret de signature, minimum 32 caractères aléatoires en production |
+| `FIREBASE_PROJECT_ID` | Projet Firebase Authentication |
+| `FIREBASE_API_KEY` | Clé publique de configuration Web Firebase |
+| `FIREBASE_AUTH_DOMAIN` | Domaine Firebase du flux OAuth |
+| `FIREBASE_ALLOWED_EMAILS` | Liste serveur des comptes Google vérifiés autorisés |
 
-Créer le secret, par exemple avec `node -e "console.log(require('crypto').randomBytes(48).toString('hex'))"`. Le conserver dans les variables Railway, jamais dans Git. La production refuse de démarrer sans protection du foyer. En local, un `FAMILY_PASSWORD` vide permet l’accès sur la boucle locale sans connexion. Si vous protégez le développement local, fournissez aussi un secret stable.
+Le projet Firebase de Cuisine est `cuisine-2af55`, application Web `Cuisine PWA`, fournisseur Google activé. Autoriser le domaine `cuisine-production-9ac9.up.railway.app` dans Authentication → Paramètres → Domaines autorisés. La configuration Web est publique ; les comptes autorisés restent dans les variables serveur Railway. Aucune clé privée Firebase n’est nécessaire : JOSE vérifie la signature RS256 avec les clés publiques Google, l’expiration, l’émetteur, l’audience, l’identité et l’adresse e-mail vérifiée.
 
-Chaque appareil se connecte avec le mot de passe du foyer ; le cookie signé expire après 30 jours. Les cookies sont `Secure` en production et `SameSite=Strict`. Changer `SESSION_SECRET` invalide toutes les sessions existantes. Fermer la session efface le cache de cet appareil. Une session fermée côté serveur ne supprime pas à distance les données hors connexion déjà conservées sur un autre appareil.
+Chaque appareil se connecte avec Google. L’API exige un jeton Firebase valide et une adresse présente dans `FIREBASE_ALLOWED_EMAILS` ; un compte Firebase quelconque n’accède pas au foyer. La persistance de session est gérée par le SDK Firebase dans IndexedDB, et le jeton est transmis en header Authorization par HTTPS. Cuisine ne copie pas ces jetons dans localStorage. Fermer la session déconnecte Firebase et efface le cache applicatif local. Retirer une adresse de la liste serveur bloque ses prochaines requêtes ; les données déjà consultées hors connexion ne sont pas effacées à distance. En développement local uniquement, l’absence de `FIREBASE_PROJECT_ID` permet l’accès sans connexion sur la boucle locale. La production reste fermée si Firebase est incomplet.
 
 ## Prisma et recettes
 
@@ -103,12 +105,12 @@ Les tests UI sont destinés à la base de développement locale, sans mot de pas
 
 ## Déploiement Railway
 
-Instance publiée : [À Table !](https://cuisine-production-9ac9.up.railway.app). Projet `Cuisine`, environnement `production`, services `Cuisine` et `Postgres`. La branche GitHub `main` déclenche les déploiements. Les accès sont conservés localement dans `.local/production-access.json`, exclu de Git ; utiliser uniquement `FAMILY_PASSWORD` pour se connecter.
+Instance publiée : [À Table !](https://cuisine-production-9ac9.up.railway.app). Projet `Cuisine`, environnement `production`, services `Cuisine` et `Postgres`. La branche GitHub `main` déclenche les déploiements. La connexion utilise Google/Firebase ; l’ancien mot de passe du foyer n’est plus utilisé.
 
 1. Créer un projet Railway et ajouter un service PostgreSQL.
 2. Ajouter un service depuis `Nyaru01/Cuisine`, branche `main`, racine du repository.
 3. Renseigner `DATABASE_URL` par la référence `${{Postgres.DATABASE_URL}}` (adapter au nom exact du service PostgreSQL).
-4. Ajouter `NODE_ENV=production`, `FAMILY_PASSWORD` et `SESSION_SECRET`. Railway fournit `PORT`. Railpack installe les dépendances puis lance `npm run build` : ne pas réinstaller les dépendances dans la commande de build. `RAILPACK_NODE_NPM_INSTALL=npm ci --include=dev` est configuré pour l’installation.
+4. Ajouter `NODE_ENV=production` et les quatre variables `FIREBASE_*` du tableau ci-dessus. Railway fournit `PORT`. Railpack installe les dépendances puis lance `npm run build` : ne pas réinstaller les dépendances dans la commande de build. `RAILPACK_NODE_NPM_INSTALL=npm ci --include=dev` est configuré pour l’installation.
 5. Dans les réglages du service, configurer **Pre-deploy Command** : `npm run db:migrate && npm run db:seed`, et **Healthcheck Path** : `/api/health`. La commande de démarrage détectée est `npm start`. Le healthcheck vérifie les tables, le catalogue et le foyer initialisé. Ces réglages sont indispensables : les nouveaux services Railway ignorent désormais `railway.json`. Ce fichier reste une référence pour les services utilisant encore l’ancien mode ; la configuration effective de Cuisine est dans Railway.
 6. Générer un domaine HTTPS Railway. Le frontend et l’API ont la même origine.
 7. Vérifier la connexion du foyer depuis deux appareils, les courses et l’installation PWA.

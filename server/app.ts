@@ -1,6 +1,5 @@
 import express from "express";
 import helmet from "helmet";
-import cookieParser from "cookie-parser";
 import compression from "compression";
 import { rateLimit } from "express-rate-limit";
 import { z, ZodError } from "zod";
@@ -31,11 +30,12 @@ import {
   requireAuth,
   protectWrites,
   authEnabled,
-  validSession,
-  checkPassword,
-  newSession,
-  cookieOptions,
-} from "./auth.js";
+  authenticate,
+  authConfig,
+  type TokenVerifier,
+} from "./firebase-auth.js";
+import { saveRecipe } from "./recipes.js";
+import { driveRouter } from "./drive/routes.js";
 const weekSchema = z
   .string()
   .regex(/^\d{4}-\d{2}-\d{2}$/)
@@ -79,22 +79,24 @@ const settingsSchema = z.object({
     )
     .max(14),
 });
-export function createApp() {
+export function createApp(options: { verifyToken?: TokenVerifier } = {}) {
   const app = express();
   app.set("trust proxy", 1);
   app.disable("x-powered-by");
   app.use(compression());
   app.use(
     helmet({
+      crossOriginOpenerPolicy: { policy: "same-origin-allow-popups" },
       contentSecurityPolicy:
         process.env.NODE_ENV === "production"
           ? {
               directives: {
                 defaultSrc: ["'self'"],
-                scriptSrc: ["'self'"],
+                scriptSrc: ["'self'", "https://apis.google.com"],
                 styleSrc: ["'self'", "'unsafe-inline'"],
                 imgSrc: ["'self'", "data:"],
-                connectSrc: ["'self'"],
+                connectSrc: ["'self'", "https://*.googleapis.com", "https://*.firebaseapp.com"],
+                frameSrc: ["https://*.firebaseapp.com", "https://accounts.google.com"],
                 fontSrc: ["'self'"],
                 workerSrc: ["'self'"],
                 objectSrc: ["'none'"],
@@ -103,7 +105,7 @@ export function createApp() {
           : false,
     }),
   );
-  app.use(express.json({ limit: "32kb" }), cookieParser());
+  app.use(express.json({ limit: "256kb" }));
   app.use("/api", (_req, res, next) => {
     res.set("Cache-Control", "no-store");
     next();
@@ -122,14 +124,17 @@ export function createApp() {
     }
   });
   app.use("/api", protectWrites);
-  app.get("/api/auth", (req, res) =>
+  app.get("/api/auth/config", (_req,res)=>res.json({...authConfig(),enabled:authEnabled}));
+  app.use('/api',rateLimit({windowMs:60000,limit:300,standardHeaders:'draft-8',legacyHeaders:false,message:{error:'Trop de requêtes. Réessayez dans une minute.'}}));
+  app.use("/api", authenticate(options.verifyToken));
+  app.get("/api/auth", (_req, res) =>
     res.json({
       enabled: authEnabled,
-      authenticated: !authEnabled || validSession(req.cookies?.session),
+      authenticated: res.locals.authenticated,
     }),
   );
-  app.get("/api/bootstrap", async (req, res) => {
-    const authenticated = !authEnabled || validSession(req.cookies?.session);
+  app.get("/api/bootstrap", async (_req, res) => {
+    const authenticated = res.locals.authenticated;
     if (!authenticated)
       return res.json({ enabled: authEnabled, authenticated: false });
     const [recipes, settings, favorites, plan] = await Promise.all([
@@ -141,35 +146,21 @@ export function createApp() {
     res.json({
       enabled: authEnabled,
       authenticated: true,
+      driveEnabled: process.env.LECLERC_INTEGRATION_ENABLED === "true",
       recipes,
       settings,
       favorites: favorites.map((f) => f.recipeId),
       plan,
     });
   });
-  app.post(
-    "/api/auth/login",
-    rateLimit({
-      windowMs: 15 * 60000,
-      limit: 10,
-      standardHeaders: "draft-8",
-      legacyHeaders: false,
-      message: { error: "Trop de tentatives. Réessayez dans 15 minutes." },
-    }),
-    (req, res) => {
-      const body = z.object({ password: z.string().max(256) }).parse(req.body);
-      if (!checkPassword(body.password))
-        throw new ApiError(401, "Mot de passe incorrect.");
-      res
-        .cookie("session", newSession(), cookieOptions)
-        .json({ authenticated: true });
-    },
-  );
   app.post("/api/auth/logout", (_req, res) => {
-    res.clearCookie("session", cookieOptions).json({ authenticated: false });
+    res.clearCookie("session").json({ authenticated: false });
   });
   app.use("/api", requireAuth);
+  app.use('/api/drive/leclerc',driveRouter());
   app.get("/api/recipes", async (_req, res) => res.json(await getRecipes()));
+  app.post("/api/recipes", async(req,res)=>res.status(201).json(await saveRecipe(req.body,res.locals.identity.uid)));
+  app.put("/api/recipes/:id", async(req,res)=>res.json(await saveRecipe(req.body,res.locals.identity.uid,String(req.params.id))));
   app.get("/api/recipes/:id", async (req, res) => {
     const recipe = (await getRecipes()).find((r) => r.id === req.params.id);
     if (!recipe) throw new ApiError(404, "Recette introuvable.");

@@ -18,12 +18,15 @@ export async function api<T>(
 ): Promise<T> {
   const key = `${prefix}${url}`;
   try {
+    const {getIdentityToken}=await import('./firebase');
+    const token=await getIdentityToken();
     const response = await fetch(url, {
       method,
       credentials: "same-origin",
       headers: {
         "Content-Type": "application/json",
         "X-Requested-With": "A-Table",
+        ...(token?{Authorization:`Bearer ${token}`} : {}),
       },
       body: body === undefined ? undefined : JSON.stringify(body),
     });

@@ -4,7 +4,7 @@ import { useQueryClient } from "@tanstack/react-query";
 import { useApp, useAction } from "../hooks/app";
 import { PageHeading } from "../components/common";
 import { adultEquivalent } from "../../shared/domain";
-import { api, clearCache } from "../services/api";
+import { clearCache } from "../services/api";
 export default function Settings() {
   const { settings } = useApp(),
     [draft, setDraft] = useState(settings),
@@ -237,7 +237,8 @@ export default function Settings() {
         <button
           className="text-button"
           onClick={async () => {
-            await api("/api/auth/logout", "POST");
+            const {logoutGoogle}=await import('../services/firebase');
+            await logoutGoogle();
             clearCache();
             client.clear();
             location.reload();

@@ -1,5 +1,6 @@
 import { useState } from "react";
-import { Search, Heart, Leaf } from "lucide-react";
+import { Search, Heart, Leaf, Plus } from "lucide-react";
+import { RecipeEditor } from "../components/RecipeEditor";
 import { useApp } from "../hooks/app";
 import { RecipeCard, PageHeading } from "../components/common";
 import {
@@ -15,7 +16,8 @@ export default function Recipes({
 }) {
   const { recipes, favorites, settings } = useApp(),
     [search, setSearch] = useState(""),
-    [filter, setFilter] = useState("all");
+    [filter, setFilter] = useState(favoritesOnly ? "all" : "season"),
+    [editing,setEditing]=useState(false);
   const visible = recipes.filter(
     (r) =>
       (!favoritesOnly || favorites.includes(r.id)) &&
@@ -23,6 +25,7 @@ export default function Recipes({
         `${r.name} ${r.ingredients.map((i) => i.name).join(" ")}`,
       ).includes(normalize(search)) &&
       (filter === "all" ||
+        (filter === "mine" && r.source === "custom") ||
         (filter === "season" &&
           r.months.includes(Number(parisToday().slice(5, 7)))) ||
         (filter === "veggie" && r.vegetarian) ||
@@ -43,7 +46,7 @@ export default function Recipes({
             ? "Ces plats ont une place particulière à votre table."
             : `${recipes.length} vraies recettes familiales. Simples, généreuses, de saison.`
         }
-      />
+      ><button className="button" onClick={()=>setEditing(true)}><Plus size={18}/>Ajouter une recette</button></PageHeading>
       <div className="recipe-toolbar">
         <label className="search-field">
           <Search size={20} />
@@ -58,6 +61,7 @@ export default function Recipes({
           {[
             ["all", "Tout le carnet"],
             ["season", `De saison · ${seasonFor(parisToday())}`],
+            ["mine", "Mes recettes"],
             ["veggie", "Végétarien"],
             ["quick", "35 min ou moins"],
             ["compatible", "Pour notre famille"],
@@ -96,6 +100,7 @@ export default function Recipes({
           </p>
         </div>
       )}
+      {editing&&<RecipeEditor onClose={()=>setEditing(false)} onSaved={()=>{setEditing(false);setFilter('mine');}}/>}
     </>
   );
 }

@@ -38,6 +38,8 @@ model ExcludedIngredient {
 }
 model Recipe {
   id String @id
+  source String @default("catalog")
+  authorUid String?
   name String
   description String
   image String
@@ -63,6 +65,37 @@ model Recipe {
   meals MealSlot[]
   favorites Favorite[]
   history MealHistory[]
+}
+
+model DriveState {
+  id String @id @default("family")
+  mode String
+  store Json?
+  cart Json @default("[]")
+  updatedAt DateTime @updatedAt
+}
+model DriveSyncJob {
+  id String @id @default(cuid())
+  mode String
+  storeId String
+  week String
+  planVersion Int
+  status String
+  proposals Json
+  total Int @default(0)
+  processed Int @default(0)
+  success Int @default(0)
+  failures String[]
+  updatedAt DateTime @updatedAt
+}
+model IngredientProductPreference {
+  id String @id @default(cuid())
+  ingredient String
+  storeId String
+  productId String
+  selectionCount Int @default(1)
+  updatedAt DateTime @updatedAt
+  @@unique([ingredient, storeId, productId])
 }
 model Ingredient {
   id String @id

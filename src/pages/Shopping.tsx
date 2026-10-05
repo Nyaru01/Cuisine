@@ -8,10 +8,13 @@ import { useApiQuery, useApp } from "../hooks/app";
 import { api } from "../services/api";
 import { PageHeading, QueryState } from "../components/common";
 import { WeekNavigation } from "./Week";
+import { DrivePanel } from "../components/DrivePanel";
 export default function Shopping() {
   const [params, setParams] = useSearchParams(),
     week = params.get("week") || monday(),
-    [hideChecked, setHideChecked] = useState(false);
+    [hideChecked, setHideChecked] = useState(false),
+    [driveTab,setDriveTab]=useState(false);
+  const feature=useApiQuery<{driveEnabled?:boolean}>('/api/bootstrap');
   const url = `/api/shopping-list/${week}`,
     query = useApiQuery<ShoppingItem[]>(url),
     client = useQueryClient(),
@@ -55,6 +58,8 @@ export default function Shopping() {
           Imprimer les courses
         </Link>
       </PageHeading>
+      {feature.data?.driveEnabled&&<div className="filter-pills" aria-label="Vue des courses"><button aria-pressed={!driveTab} className={!driveTab?'selected':''} onClick={()=>setDriveTab(false)}>Liste</button><button aria-pressed={driveTab} className={driveTab?'selected':''} onClick={()=>setDriveTab(true)}>E.Leclerc Drive</button></div>}
+      {driveTab&&feature.data?.driveEnabled?<DrivePanel key={week} week={week}/>:<>
       <div className="toolbar">
         <WeekNavigation week={week} setWeek={(week) => setParams({ week })} />
         <label className="toggle">
@@ -142,6 +147,7 @@ export default function Shopping() {
           </div>
         )
       )}
+      </>}
     </>
   );
 }

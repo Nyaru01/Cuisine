@@ -1947,6 +1947,17 @@ img {
   size: A4 portrait;
   margin: 12mm;
 }
+.recipe-editor { width: min(900px, calc(100vw - 24px)); }
+.recipe-editor form { display: grid; gap: 20px; }
+.recipe-editor textarea { width: 100%; min-height: 90px; padding: 12px; border: 1px solid var(--line); border-radius: 8px; background: white; font: inherit; }
+.recipe-editor fieldset { min-width: 0; border: 1px solid var(--line); border-radius: 12px; padding: 16px; }
+.editor-facts { display: grid; grid-template-columns: repeat(3, minmax(0,1fr)); gap: 12px; }
+.ingredient-editor { display: grid; grid-template-columns: 2fr 1fr 1fr 1.4fr auto; gap: 10px; align-items: end; margin-bottom: 12px; }
+.drive-panel { padding: 24px; background: white; border: 1px solid var(--line); border-radius: 18px; margin: 20px 0; }
+.drive-product { display: grid; gap: 12px; padding: 18px 0; border-bottom: 1px solid var(--line); }
+.drive-product select, .drive-product input { max-width: 100%; padding: 10px; font: inherit; }
+.drive-actions { display: flex; flex-wrap: wrap; align-items: center; gap: 12px; }
+@media(max-width:600px) { .editor-facts { grid-template-columns: 1fr; } .ingredient-editor { grid-template-columns: 1fr 1fr; } .ingredient-editor .field:first-child { grid-column: 1 / -1; } .drive-panel { padding: 16px; } }
 @media print {
   html,
   body,
