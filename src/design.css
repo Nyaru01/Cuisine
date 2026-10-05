@@ -55,8 +55,8 @@ body { background: var(--cream); }
 .detail-image { border-radius: 16px; }
 .photo-caption { font-size: 11px; text-align: right; margin: 8px 0 0; color: var(--muted); }
 .recipe-editor fieldset { background: #f8f9f2; }
-.login-page { grid-template-columns: minmax(0, 1.1fr) minmax(0, 1fr); background: var(--cream); }
-.login-art { position: relative; padding: 64px; align-items: flex-start; justify-content: flex-end; text-align: left; isolation: isolate; overflow: hidden; min-height: 100dvh; background: #304b3f; }
+.login-page { grid-template-columns: minmax(0, 1.1fr) minmax(0, 1fr); background: var(--cream); padding: 18px; gap: 18px; }
+.login-art { position: relative; padding: 64px; align-items: flex-start; justify-content: flex-end; text-align: left; isolation: isolate; overflow: hidden; min-height: calc(100dvh - 36px); background: #304b3f; border-radius: 28px; }
 .login-art .login-photo { position: absolute; inset: 0; width: 100%; height: 100%; margin: 0; object-fit: cover; object-position: 60% center; z-index: -2; }
 .login-art::after { content: ""; position: absolute; inset: 0; z-index: -1; background: linear-gradient(180deg, #12281e05 15%, #12281e4d 45%, #12281ee6 100%); }
 .login-story { max-width: 520px; }
@@ -86,8 +86,8 @@ body { background: var(--cream); }
   .week-summary { min-height: 200px; }
   .week-summary-main { padding: 22px; }
   .season-art img { min-height: 220px; }
-  .login-page { display: flex; flex-direction: column; }
-  .login-art { min-height: 0; height: 43dvh; max-height: 430px; flex-shrink: 0; padding: 28px; }
+  .login-page { display: flex; flex-direction: column; padding: 0; gap: 0; }
+  .login-art { min-height: 0; height: 43dvh; max-height: 430px; flex-shrink: 0; padding: 26px; margin: 14px 14px 0; border-radius: 26px; }
   .login-art .brand { font-size: 2.25rem; margin: 0 0 16px; }
   .login-art h1 { font-size: 2.5rem; margin-bottom: 0; }
   .login-art p { display: none; }
