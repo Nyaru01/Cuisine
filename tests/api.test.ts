@@ -1,0 +1,226 @@
+import "dotenv/config";
+import { test } from "node:test";
+import assert from "node:assert/strict";
+import { execFileSync } from "node:child_process";
+import { once } from "node:events";
+import type { Plan, ShoppingItem, Recipe } from "../shared/types.js";
+// Schéma isolé : aucun repas du foyer de développement n'est modifié.
+const schema = `qa_${Date.now()}`;
+if (!/^qa_\d+$/.test(schema)) throw new Error("Schéma invalide");
+const url = new URL(process.env.DATABASE_URL!);
+url.searchParams.set("schema", schema);
+process.env.DATABASE_URL = url.toString();
+process.env.FAMILY_PASSWORD = "test-family-password";
+process.env.SESSION_SECRET = "test-only-secret-32-characters-long";
+process.env.NODE_ENV = "test";
+execFileSync(
+  process.execPath,
+  ["node_modules/prisma/build/index.js", "migrate", "deploy"],
+  { env: process.env, stdio: "pipe" },
+);
+await import("../prisma/seed.js");
+const { createApp } = await import("../server/app.js");
+const { db } = await import("../server/db.js");
+test("API PostgreSQL : authentification, génération, verrouillage, remplacement, courses et deux appareils", async () => {
+  const server = createApp().listen(0, "127.0.0.1");
+  await once(server, "listening");
+  const address = server.address();
+  assert.ok(address && typeof address !== "string");
+  const base = `http://127.0.0.1:${address.port}`;
+  let cookie = "";
+  const request = async <T>(
+    route: string,
+    method = "GET",
+    body?: unknown,
+    authenticated = true,
+  ) => {
+    const res = await fetch(base + route, {
+      method,
+      headers: {
+        "Content-Type": "application/json",
+        "X-Requested-With": "A-Table",
+        ...(authenticated ? { Cookie: cookie } : {}),
+      },
+      body: body === undefined ? undefined : JSON.stringify(body),
+    });
+    return {
+      status: res.status,
+      data: (await res.json()) as T,
+      headers: res.headers,
+    };
+  };
+  try {
+    assert.equal((await request("/api/health")).status, 200);
+    assert.equal((await request("/api/recipes")).status, 401);
+    const anonymous = await request<{
+      authenticated: boolean;
+      recipes?: Recipe[];
+    }>("/api/bootstrap");
+    assert.equal(anonymous.data.authenticated, false);
+    assert.equal(anonymous.data.recipes, undefined);
+    assert.equal(
+      (await request("/api/auth/login", "POST", { password: "bad" })).status,
+      401,
+    );
+    const login = await request("/api/auth/login", "POST", {
+      password: "test-family-password",
+    });
+    assert.equal(login.status, 200);
+    cookie = login.headers.get("set-cookie")!.split(";")[0];
+    assert.ok(login.headers.get("set-cookie")!.includes("HttpOnly"));
+    const forbidden = await fetch(base + "/api/plans/generate", {
+      method: "POST",
+      headers: { Cookie: cookie, "Content-Type": "application/json" },
+      body: "{}",
+    });
+    assert.equal(forbidden.status, 403);
+    assert.equal((await request("/api/plans/2026-10-06")).status, 400);
+    assert.equal((await request("/api/plans/2026-02-30")).status, 400);
+    const catalog = await request<Recipe[]>("/api/recipes");
+    assert.ok(catalog.data.length >= 50);
+    const bootstrap = await request<{
+      authenticated: boolean;
+      recipes: Recipe[];
+    }>("/api/bootstrap");
+    assert.equal(bootstrap.data.authenticated, true);
+    assert.equal(bootstrap.data.recipes.length, catalog.data.length);
+    const week = "2026-10-05";
+    let plan = (
+      await request<Plan>("/api/plans/generate", "POST", { week, version: 0 })
+    ).data;
+    assert.equal(plan.meals.length, 9);
+    assert.equal(new Set(plan.meals.map((m) => m.recipeId)).size, 9);
+    assert.equal(
+      (await request("/api/plans/generate", "POST", { week, version: 0 }))
+        .status,
+      409,
+    );
+    const locked = plan.meals[2];
+    assert.equal(
+      (
+        await request(`/api/meals/${locked.id}/lock`, "PATCH", {
+          locked: true,
+          version: plan.version,
+        })
+      ).status,
+      200,
+    );
+    plan = (await request<Plan>(`/api/plans/${week}`)).data;
+    assert.equal(
+      (
+        await request(`/api/plans/${plan.id}/replace-meal`, "POST", {
+          mealId: locked.id,
+          version: plan.version,
+        })
+      ).status,
+      423,
+    );
+    plan = (
+      await request<Plan>("/api/plans/generate", "POST", {
+        week,
+        version: plan.version,
+      })
+    ).data;
+    assert.equal(plan.meals[2].recipeId, locked.recipeId);
+    assert.equal(plan.meals[2].locked, true);
+    const initial = structuredClone(plan);
+    const meal = plan.meals[0],
+      choices = (await request<Recipe[]>(`/api/meals/${meal.id}/alternatives`))
+        .data;
+    assert.equal(choices.length, 3);
+    plan = (
+      await request<Plan>(`/api/plans/${plan.id}/replace-meal`, "POST", {
+        mealId: meal.id,
+        recipeId: choices[0].id,
+        version: plan.version,
+      })
+    ).data;
+    assert.equal(plan.meals[0].recipeId, choices[0].id);
+    assert.deepEqual(plan.meals.slice(1), initial.meals.slice(1));
+    const list = (await request<ShoppingItem[]>(`/api/shopping-list/${week}`))
+      .data;
+    assert.ok(list.length > 10);
+    assert.ok(list.every((i) => i.quantity > 0));
+    const item = list[0];
+    assert.equal(
+      (
+        await request(`/api/shopping-list/items/${item.id}`, "PATCH", {
+          checked: true,
+        })
+      ).status,
+      200,
+    );
+    const secondLogin = await request("/api/auth/login", "POST", {
+      password: "test-family-password",
+    });
+    const deviceCookie = secondLogin.headers.get("set-cookie")!.split(";")[0];
+    const secondList = (await fetch(base + `/api/shopping-list/${week}`, {
+      headers: { Cookie: deviceCookie },
+    }).then((r) => r.json())) as ShoppingItem[];
+    assert.equal(secondList.find((i) => i.id === item.id)?.checked, true);
+    const fresh = (await fetch(base + `/api/plans/${week}`, {
+      headers: { Cookie: deviceCookie },
+    }).then((r) => r.json())) as Plan;
+    assert.deepEqual(fresh, plan);
+    await request(`/api/favorites/${choices[0].id}`, "POST");
+    assert.ok(
+      (await request<string[]>("/api/favorites")).data.includes(choices[0].id),
+    );
+    await request(`/api/favorites/${choices[0].id}`, "DELETE");
+    assert.equal((await request<string[]>("/api/favorites")).data.length, 0);
+    const races = await Promise.all([
+      request(`/api/meals/${plan.meals[1].id}/lock`, "PATCH", {
+        locked: true,
+        version: plan.version,
+      }),
+      request(`/api/meals/${plan.meals[3].id}/lock`, "PATCH", {
+        locked: true,
+        version: plan.version,
+      }),
+    ]);
+    assert.deepEqual(races.map((r) => r.status).sort(), [200, 409]);
+    assert.equal(
+      (
+        await request("/api/settings", "PATCH", {
+          household: { adults: -1, children: [] },
+        })
+      ).status,
+      400,
+    );
+    const settings = (
+      await request<import("../shared/types.js").Settings>("/api/settings")
+    ).data;
+    const unsafeAllergy = catalog.data.find((r) => r.id === locked.recipeId)!
+      .ingredients[0].name;
+    assert.equal(
+      (
+        await request("/api/settings", "PATCH", {
+          ...settings,
+          exclusions: [unsafeAllergy],
+        })
+      ).status,
+      409,
+    );
+    assert.equal(
+      (
+        await request("/api/settings", "PATCH", {
+          ...settings,
+          household: { adults: 3, children: [{ age: 8 }] },
+        })
+      ).status,
+      200,
+    );
+    assert.equal(
+      (await request<import("../shared/types.js").Settings>("/api/settings"))
+        .data.household.adults,
+      3,
+    );
+    await request("/api/auth/logout", "POST");
+  } finally {
+    await new Promise<void>((resolve, reject) =>
+      server.close((e) => (e ? reject(e) : resolve())),
+    );
+    await db.$executeRawUnsafe(`DROP SCHEMA "${schema}" CASCADE`);
+    await db.$disconnect();
+  }
+});
