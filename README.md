@@ -103,15 +103,17 @@ Les tests UI sont destinés à la base de développement locale, sans mot de pas
 
 ## Déploiement Railway
 
+Instance publiée : [À Table !](https://cuisine-production-9ac9.up.railway.app). Projet `Cuisine`, environnement `production`, services `Cuisine` et `Postgres`. La branche GitHub `main` déclenche les déploiements. Les accès sont conservés localement dans `.local/production-access.json`, exclu de Git ; utiliser uniquement `FAMILY_PASSWORD` pour se connecter.
+
 1. Créer un projet Railway et ajouter un service PostgreSQL.
 2. Ajouter un service depuis `Nyaru01/Cuisine`, branche `main`, racine du repository.
 3. Renseigner `DATABASE_URL` par la référence `${{Postgres.DATABASE_URL}}` (adapter au nom exact du service PostgreSQL).
-4. Ajouter `NODE_ENV=production`, `FAMILY_PASSWORD` et `SESSION_SECRET`. Railway fournit `PORT`.
-5. Le `railway.json` construit le frontend et le serveur, exécute les migrations et le seed avant déploiement, puis démarre `npm start`. `/api/health` vérifie PostgreSQL.
+4. Ajouter `NODE_ENV=production`, `FAMILY_PASSWORD` et `SESSION_SECRET`. Railway fournit `PORT`. Railpack installe les dépendances puis lance `npm run build` : ne pas réinstaller les dépendances dans la commande de build. `RAILPACK_NODE_NPM_INSTALL=npm ci --include=dev` est configuré pour l’installation.
+5. Dans les réglages du service, configurer **Pre-deploy Command** : `npm run db:migrate && npm run db:seed`, et **Healthcheck Path** : `/api/health`. La commande de démarrage détectée est `npm start`. Le healthcheck vérifie les tables, le catalogue et le foyer initialisé. Ces réglages sont indispensables : les nouveaux services Railway ignorent désormais `railway.json`. Ce fichier reste une référence pour les services utilisant encore l’ancien mode ; la configuration effective de Cuisine est dans Railway.
 6. Générer un domaine HTTPS Railway. Le frontend et l’API ont la même origine.
 7. Vérifier la connexion du foyer depuis deux appareils, les courses et l’installation PWA.
 
-Références de configuration : [Railway configuration as code](https://docs.railway.com/guides/config-as-code), [healthchecks Railway](https://docs.railway.com/deployments/healthchecks), [migration Prisma 6](https://www.prisma.io/docs/orm/v6/prisma-client/deployment/deploy-migrations-from-a-local-environment).
+Références de configuration : [Railway Infrastructure as Code](https://docs.railway.com/infrastructure-as-code), [ancien mode Config as Code](https://docs.railway.com/config-as-code/reference), [healthchecks Railway](https://docs.railway.com/deployments/healthchecks), [migration Prisma 6](https://www.prisma.io/docs/orm/v6/prisma-client/deployment/deploy-migrations-from-a-local-environment).
 
 ## PWA et utilisation hors connexion
 
@@ -123,4 +125,4 @@ Android/desktop : installation via le navigateur compatible. iPhone/iPad : Safar
 
 Un foyer partagé, sans compte individuel ni multi-tenant. Les écrans exposent uniquement le foyer configuré côté serveur. Les relations SQL possèdent un `householdId` pour une évolution ultérieure. Les repas de l’historique sont ceux planifiés, sans confirmation qu’ils ont effectivement été consommés. L’équilibre est une règle de variété culinaire, sans calcul nutritionnel. Les allergies de base sont issues des ingrédients ; les traces, les substitutions et la composition des produits achetés restent à vérifier.
 
-Les objectifs Lighthouse doivent être mesurés sur le domaine de production. Le déploiement public, les installations sur appareils physiques et la synchronisation via Railway exigent un projet et une session Railway valides.
+Les objectifs Lighthouse doivent être mesurés sur le domaine de production. Les installations sur appareils physiques restent à vérifier sur le téléphone du foyer.

@@ -110,7 +110,12 @@ export function createApp() {
   });
   app.get("/api/health", async (_req, res) => {
     try {
-      await db.$queryRaw`SELECT 1`;
+      const [recipes, household] = await Promise.all([
+        db.recipe.count(),
+        db.household.findUnique({ where: { id: "family" }, select: { id: true } }),
+      ]);
+      if (recipes === 0 || !household)
+        return res.status(503).json({ status: "database-not-initialized" });
       res.json({ status: "ok" });
     } catch {
       res.status(503).json({ status: "database-unavailable" });

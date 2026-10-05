@@ -1,6 +1,6 @@
 # À Table ! — Première livraison
 
-Validation du 5 octobre 2026. Application construite et démarrée sur `http://127.0.0.1:3001`, avec PostgreSQL local persistant sur `127.0.0.1:55432`.
+Validation du 5 octobre 2026. Application publiée sur [À Table !](https://cuisine-production-9ac9.up.railway.app), avec PostgreSQL persistant sur Railway. La version locale reste disponible sur `http://127.0.0.1:3001`, avec PostgreSQL local sur `127.0.0.1:55432`.
 
 ## Plan réalisé
 
@@ -22,7 +22,7 @@ Validation du 5 octobre 2026. Application construite et démarrée sur `http://1
 | PWA | Manifest, icônes PNG, service worker, cache des assets, lecture des données consultées hors connexion |
 | Authentification | Mot de passe du foyer, cookie signé HttpOnly/Secure en production, contrôle d’origine, limitation des tentatives |
 | Production | Build React de production, compression HTTP, cache des assets portant un hash, santé PostgreSQL |
-| Railway | Configuration de build/démarrage, migration et seed avant déploiement, variables documentées |
+| Railway | Projet Cuisine en production, domaine HTTPS, PostgreSQL persistant, migration et seed avant déploiement, publication automatique depuis GitHub main |
 
 ## Vérifications exécutées
 
@@ -52,10 +52,18 @@ LCP : 2,3 s. TBT : 180 ms. CLS : 0. Ces chiffres sont une mesure locale, pas une
 
 Les captures, PDFs, rendus et rapports bruts sont dans `.local/qa` ; le rapport Playwright est dans `playwright-report`. Ces fichiers de contrôle et les données PostgreSQL sont exclus de Git. Le README contient les commandes pour les reproduire.
 
-## À valider sur l’hébergement et les appareils physiques
+## Vérification de production
 
-- Publication et vérification du domaine HTTPS Railway : la session CLI présente a expiré (`Unauthorized. Please run railway login again.`) et aucun projet n’est lié. Aucun déploiement public n’a été effectué.
-- Le repository distant était vide lors de l’inspection. Les commits sont préparés localement sur `main` ; aucune publication GitHub n’a été effectuée.
+- Code publié sur `Nyaru01/Cuisine`, branche `main`, reliée au service Railway `Cuisine` ; PostgreSQL et application déployés avec succès.
+- Migration SQL appliquée et seed idempotent exécuté : 60 recettes disponibles. Neuf repas distincts initialisés pour la semaine du 5 octobre ; liste de 36 ingrédients agrégés.
+- Domaine HTTPS : santé HTTP 200 ; catalogue protégé HTTP 401 sans session ; bootstrap anonyme sans données privées.
+- Connexion avec le mot de passe du foyer : cookie HttpOnly/Secure/SameSite=Strict ; deux sessions indépendantes lisent le même planning. Une case de courses modifiée par une session est visible dans l’autre, puis remise à son état initial.
+- Trois alternatives disponibles pour un repas ; écritures sans header de protection refusées HTTP 403 ; page, manifest, service worker et illustration vérifiés HTTP 200.
+- Rapport sans secrets dans `.local/qa/production-checks.json`. Accès du foyer dans `.local/production-access.json`, exclu de Git. Seul `FAMILY_PASSWORD` est nécessaire dans le formulaire de connexion.
+- Adaptation au nouveau fonctionnement Railway : `railway.json` est ignoré par ce nouveau service. La commande de pré-déploiement et le healthcheck sont configurés directement dans le service ; le README détaille leur reproduction. Le healthcheck applicatif vérifie aussi que les tables, le catalogue et le foyer existent.
+
+## À valider sur les appareils physiques
+
 - Installation réelle iOS/Android/desktop et synchronisation téléphone/PC via le domaine Railway : manifest, worker et scénario navigateur validés localement, appareils physiques non testés.
 - Impression papier avec l’imprimante du foyer : PDFs A4 contrôlés, impression matérielle non exécutée. Une liste plus longue peut occuper plusieurs pages sans couper ses catégories.
 
