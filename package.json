@@ -12,7 +12,7 @@
     "start": "node dist-server/server/index.js",
     "lint": "eslint .",
     "typecheck": "tsc --noEmit && tsc -p tsconfig.server.json --noEmit",
-    "test": "tsx --test tests/domain.test.ts tests/drive.test.ts",
+    "test": "tsx --test tests/domain.test.ts tests/drive.test.ts tests/recipe-images.test.ts",
     "test:api": "tsx --test tests/api.test.ts",
     "test:ui": "playwright test",
     "db:migrate": "prisma migrate deploy",

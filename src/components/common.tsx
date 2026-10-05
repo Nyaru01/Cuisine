@@ -1,6 +1,7 @@
-import { useEffect, useRef, type ReactNode } from "react";
-import { X, Heart, Clock, Leaf, ArrowUpRight } from "lucide-react";
+import { useEffect, useRef, useState, type ReactNode } from "react";
+import { X, Heart, Clock, Leaf, ArrowUpRight, Utensils } from "lucide-react";
 import type { Recipe } from "../../shared/types";
+import { recipeImage } from "../../shared/recipe-images";
 import { useApp, useAction } from "../hooks/app";
 export function Dialog({
   title,
@@ -64,18 +65,15 @@ export function FoodImage({
   recipe: Recipe;
   className?: string;
 }) {
-  const family = /^\/images\/(bake|fish|pasta|salad|soup|stew|vegetables)\.svg$/.exec(recipe.image)?.[1];
-  const name = recipe.name.toLocaleLowerCase("fr-FR");
-  const subject = family && family !== "soup" && family !== "salad"
-    ? /gratin|hachis/.test(name) ? "gratin"
-      : /poulet/.test(name) ? "chicken"
-        : /lentilles/.test(name) ? "lentils" : family
-    : family;
-  const photo = subject
-    ? `/images/${subject}.webp`
-    : recipe.image === "/images/harvest.svg"
-      ? "/images/family-table.webp"
-      : recipe.image;
+  const photo = recipeImage(recipe);
+  const [failedPhoto, setFailedPhoto] = useState<string | null>(null);
+  if (!photo || failedPhoto === photo)
+    return (
+      <div className={`food-image-placeholder ${className}`} role="img" aria-label={`Pas de photo pour ${recipe.name}`}>
+        <Utensils size={32} aria-hidden="true" />
+        <span>Photo à ajouter</span>
+      </div>
+    );
   return (
     <img
       className={className}
@@ -84,11 +82,7 @@ export function FoodImage({
       loading="lazy"
       width="640"
       height="420"
-      onError={(e) => {
-        const target = e.currentTarget;
-        if (!target.src.endsWith("/images/family-table.webp"))
-          target.src = "/images/family-table.webp";
-      }}
+      onError={() => setFailedPhoto(photo)}
     />
   );
 }

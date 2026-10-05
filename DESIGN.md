@@ -4,6 +4,20 @@ Le thème conserve le crème, le vert sauge et le terracotta. `src/design.css` c
 
 ## Images
 
+### Correction du catalogue du 5 octobre 2026
+
+Les 60 recettes ont désormais une image distincte dans `public/images/recipes/<id>.webp`. `shared/recipe-images.ts` associe explicitement chaque identifiant du catalogue à son image, y compris pour les données existantes encore enregistrées avec une illustration SVG. La sélection par famille et les substitutions par mots du titre ont été supprimées. Une recette personnelle sans image et une image en erreur affichent un visuel neutre, jamais la photo d'un autre plat.
+
+57 nouveaux visuels ont été créés avec l'outil intégré imagegen. Trois images existantes correspondaient déjà à la recette : curry doux de poulet, spaghetti bolognaise et tarte aux poireaux et chèvre. Elles ont été copiées dans le dossier du catalogue. Les nouveaux fichiers sont exportés en WebP 960 × 640, qualité 78, par `scripts/prepare-recipe-photo.mjs`. La revue visuelle des 60 plats est produite par `scripts/audit-recipe-images.ts` (planches locales dans `.local/qa`). Les images restent des idées de présentation générées, pas des photos des repas réalisés.
+
+Prompt utilisé séparément pour chaque nouveau plat, avec les ingrédients et les instructions exacts de `shared/recipes.ts` :
+
+> Photorealistic food photograph of the exact French family recipe "{name}". Ingredients: {ingredients}. Preparation: {instructions}. Show the finished dish faithfully: correct protein, vegetables, starch, color and presentation dictated by the recipe. NO ingredient substitutions, no generic dish, no meat in vegetarian dishes, no pastry for gratins, no spaghetti for lasagna. A soup of peas must be green; a dahl uses orange-red lentils; sausages must appear in sausage dishes; fish salads must show flaked tuna mixed into salad, not whole fish fillets. Landscape 3:2, food centered, 45-degree overhead view, cream ceramic plate or oven dish appropriate to this recipe, oak table, cream linen, warm natural window light, subtle muted sage palette. Realistic appetizing simple home cooking. One photograph, no collage, no text, no watermark, no people.
+
+Le hachis précise une couche de bœuf haché sous une purée de pommes de terre avec de l'emmental doré, sans chou-fleur ni pâte. Le premier lot (poulet rôti, dauphinois, lasagnes, quiche lorraine, saumon au four, risotto) utilise le même cadrage et impose explicitement les ingrédients et étapes de chaque recette. Les originaux sont conservés dans le dossier Codex `generated_images`; seules les versions compressées sont publiées.
+
+### Visuels initiaux
+
 Créées avec l’outil intégré imagegen, puis exportées en WebP avec Sharp. Ce sont des images réalistes générées, illustratives par famille de plats, pas des photographies des recettes réalisées par le foyer. Les fiches portent la mention « Idée de présentation ». Les anciennes illustrations en base restent compatibles : `FoodImage` choisit leur équivalent photographique, sans migration des données.
 
 Assets : `public/images/family-table.webp`, `bake.webp`, `fish.webp`, `pasta.webp`, `salad.webp`, `soup.webp`, `stew.webp`, `vegetables.webp`, `chicken.webp`, `gratin.webp`, `lentils.webp`.
