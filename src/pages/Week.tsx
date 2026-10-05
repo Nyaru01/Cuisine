@@ -209,8 +209,8 @@ export default function Week() {
         </div>
         <div className="season-art">
           <img
-            src="/images/harvest.svg"
-            alt="Illustration de légumes de saison"
+            src="/images/family-table.webp"
+            alt="Une table familiale et des légumes rôtis à partager"
             width="340"
             height="200"
           />

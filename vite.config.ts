@@ -6,7 +6,7 @@ export default defineConfig({
     react(),
     VitePWA({
       registerType: "prompt",
-      includeAssets: ["images/*.svg", "icons/*.png"],
+      includeAssets: ["images/*.svg", "images/*.webp", "icons/*.png"],
       manifestFilename: "manifest.webmanifest",
       manifest: {
         name: "À Table ! — Repas en famille",
@@ -30,7 +30,7 @@ export default defineConfig({
         ],
       },
       workbox: {
-        globPatterns: ["**/*.{js,css,html,svg,png,webmanifest}"],
+        globPatterns: ["**/*.{js,css,html,svg,png,webp,webmanifest}"],
         navigateFallbackDenylist: [/^\/api\//],
       },
     }),

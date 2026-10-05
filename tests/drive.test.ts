@@ -12,6 +12,8 @@ test('worker : lecture des formats réels sans inventer prix ni conditionnement'
   const row={iIdProduit:42,sLibelleLigne1:'Poulet',sLibelleLigne2:'500 g',nrPVUnitaireTTC:5,iQteDisponible:3,iQuantitePanier:2,rTotalAPayer:10};
   const html=JSON.stringify({lstProduits:[row],lstProduitsLight:[{iIdProduit:42}],sTotalAPayer:'10,00 €'});
   assert.equal(parseProducts(html)[0].price,5);
+  const encoded=JSON.stringify({...row,sLibelleLigne1:'Cr&#232;me liquide',sLibelleLigne2:'20cl'});
+  assert.equal(parseProducts(encoded)[0].name,'Crème liquide 20cl');
   assert.equal(parseCart(html).totalPrice,10);
   assert.equal(parseCart(html).totalItems,2);
   assert.throws(()=>parseCart('<html>format inconnu</html>'));
@@ -31,6 +33,12 @@ test('matching : disponibilité, pertinence, gaspillage, préférence',()=>{
   const milk={...ingredient,name:'Lait',quantity:500,unit:'ml'};
   const plainMilk={...product,name:'Lait — format test 1',price:2.22,packQuantity:500,packUnit:'ml'};
   assert.ok(scoreProduct(milk,plainMilk)>scoreProduct(milk,{...plainMilk,name:'Lait de coco — format test 1',price:1.11}));
+  assert.equal(scoreProduct({...ingredient,name:'Thym'}, {...product,name:'Infusion au thym 28g'}),-Infinity);
+  assert.equal(scoreProduct({...ingredient,name:'Thym'}, {...product,name:'Olives au thym 170g'}),-Infinity);
+  assert.equal(scoreProduct({...ingredient,name:'Colin'}, {...product,name:'Colin beurre citron 400g'}),-Infinity);
+  assert.equal(scoreProduct({...ingredient,name:'Potimarron'}, {...product,name:'Purée potimarron 250g'}),-Infinity);
+  assert.equal(scoreProduct(milk,{...plainMilk,name:'Lait fermenté kéfir 495ml'}),-Infinity);
+  assert.equal(scoreProduct({...ingredient,name:'Poulet'}, {...product,name:'Pilons de poulet 360g'}),-Infinity);
 });
 test('live : refus auth, réponse invalide, timeout et circuit breaker',async()=>{
   const originalFetch=globalThis.fetch;
@@ -42,6 +50,11 @@ test('live : refus auth, réponse invalide, timeout et circuit breaker',async()=
     const invalid=new LeclercProvider();
     for(let n=0;n<3;n++)await assert.rejects(invalid.getCart());
     await assert.rejects(invalid.getCart(),/temporairement indisponible/);
+    globalThis.fetch=async()=>new Response('null',{status:200});
+    assert.equal(await invalid.getStore(),null);
+    globalThis.fetch=async()=>new Response(JSON.stringify({error:'Choisissez le magasin dans Chrome.'}),{status:409});
+    const setup=new LeclercProvider();
+    for(let n=0;n<4;n++)await assert.rejects(setup.getCart(),/Choisissez le magasin/);
     globalThis.fetch=async()=>{throw new DOMException('Timeout','TimeoutError');};
     await assert.rejects(new LeclercProvider().getCart(),/ne répond pas/);
     globalThis.fetch=async()=>new Response('[]',{status:200});

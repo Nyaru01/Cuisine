@@ -1,4 +1,5 @@
 import {randomBytes} from 'node:crypto';
+export class BrowserSetupError extends Error {}
 // Adaptateur du worker, jamais chargé par l'application Web. Ne modifie ni les protections ni les cookies.
 export class BrowserAdapter {
   async request(url:string,body?:string){
@@ -7,9 +8,19 @@ export class BrowserAdapter {
     const cdp=new URL(process.env.LECLERC_CDP_URL??'http://127.0.0.1:9222');
     if(!['127.0.0.1','localhost','[::1]'].includes(cdp.hostname))throw new Error('CDP doit rester sur la boucle locale du worker');
     const tabs=await fetch(new URL('/json/list',cdp),{signal:AbortSignal.timeout(5000)}).then(r=>r.json()) as {type:string;url:string;webSocketDebuggerUrl:string}[];
-    const tab=tabs.find(t=>t.type==='page'&&/^https:\/\/(?:www\.|fd\d+-courses\.)?leclercdrive\.fr\//.test(t.url));
-    if(!tab)throw new Error('Ouvrez E.Leclerc Drive dans le navigateur dédié du worker et connectez-vous.');
-    if(target.hostname.startsWith('fd')&&new URL(tab.url).hostname!==target.hostname)throw new Error('Choisissez le même Drive dans le navigateur du worker.');
+    const requestedStore=/^\/magasin-(\d+)-\1\//.exec(target.pathname)?.[1];
+    const tab=tabs.find(t=>{try{const address=new URL(t.url);return t.type==='page'&&address.hostname===target.hostname&&(!requestedStore||address.pathname.startsWith(`/magasin-${requestedStore}-${requestedStore}`));}catch{return false;}})
+      ??tabs.find(t=>t.type==='page'&&/^https:\/\/(?:www\.|fd\d+-courses\.)?leclercdrive\.fr\//.test(t.url));
+    if(!tab)throw new BrowserSetupError('Ouvrez E.Leclerc Drive dans le navigateur dédié du worker et connectez-vous.');
+    if(target.hostname.startsWith('fd')&&new URL(tab.url).hostname!==target.hostname)throw new BrowserSetupError('Dans le Chrome dédié, choisissez Rillieux-la-Pape et cliquez sur Commencer mes courses.');
+    if(target.hostname.startsWith('fd')){
+      const currentPath=new URL(tab.url).pathname;
+      const selected=/^\/(magasin-(\d+)-\2(?:-[^/]*?)?)(?:\/|\.aspx$)/i.exec(currentPath);
+      const requested=/^\/magasin-(\d+)-\1\//.exec(target.pathname);
+      if(!selected||!requested||selected[2]!==requested[1])throw new BrowserSetupError('Dans le Chrome dédié, choisissez Rillieux-la-Pape et cliquez sur Commencer mes courses.');
+      if(body===undefined)target.pathname=target.pathname.replace(/^\/magasin-\d+-\d+\//,`/${selected[1]}/`);
+      url=target.toString();
+    }
     const socket=new WebSocket(tab.webSocketDebuggerUrl);
     const id=Number.parseInt(randomBytes(3).toString('hex'),16);
     try{return await new Promise<{status:number;text:string}>((resolve,reject)=>{

@@ -12,6 +12,12 @@ La confirmation est distincte du matching. Les correspondances sont conservées 
 
 ## Mode réel et worker isolé
 
+### Essai sur le PC du foyer
+
+Le lanceur `scripts/start-leclerc-browser.ps1` ouvre un profil Chrome séparé dans `.local/leclerc-chrome`, avec son port de contrôle limité à la boucle locale. Se connecter manuellement à Leclerc et cliquer sur **Commencer mes courses**. Le test se fait dans Cuisine sur `http://127.0.0.1:3001/courses`, avec le worker local sur `127.0.0.1:3102` et le mode `live`. Le profil doit rester ouvert pendant l’essai. La version Railway continue à utiliser la démonstration ; elle ne peut pas joindre automatiquement ce worker local.
+
+Le Drive confirmé dans la session du foyer est `010111`, Rillieux-la-Pape / Caluire-et-Cuire, sur `fd2-courses.leclercdrive.fr`. Le worker vérifie le magasin courant et utilise le chemin canonique du navigateur. La session du navigateur intégré n’est pas copiée dans ce profil. Les secrets locaux et le profil sont exclus de Git.
+
 `server/drive/` contient l’interface DriveProvider, le matcher, le mock et l’adaptateur réseau Leclerc. `services/leclerc-connector/` contient le worker séparé : recherche de magasins, résolution du host, recherche de produits, parsing des conditionnements et du panier, mutations séquentielles et adaptateur navigateur CDP. L’application Web ne lance aucun navigateur.
 
 Pour tester le worker sur une machine dédiée :
@@ -24,7 +30,13 @@ Pour tester le worker sur une machine dédiée :
 
 Le mode réel est expérimental et non officiel. Les chemins et formats ont été étudiés dans la [référence ouverte](https://github.com/skunkobi/mcp-leclerc-drive/blob/main/docs/api-capture.md), sans dépendance d’exécution à ce projet. Ils peuvent changer. Prix, stock, nom et conditionnement sont lus du fournisseur ; un conditionnement inconnu n’est pas inventé. Un refus 401/403 exige une reconnexion manuelle. Après trois erreurs, le circuit est ouvert une minute. Le résultat final et le paiement restent sur E.Leclerc.
 
-**Validation actuelle :** matcher, conversions, disponibilité, préférences, erreurs réseau/403/réponse invalide, parsing de fixtures, circuit breaker et parcours API de démonstration testés. Le worker réel n’est pas connecté à une session Leclerc et n’a pas encore été validé sur un panier réel à Rillieux-la-Pape. Les promotions et l’optimisation de budget des phases ultérieures du brief ne sont pas activées.
+**Validation réelle du 5 octobre 2026 sur le PC :** session manuelle du Drive Rillieux-la-Pape / Caluire-et-Cuire, lecture du panier vide, recherche de produits/prix/conditionnements et ajout d’un sachet de carottes Eco+ 2 kg à 2,49 € depuis Cuisine. Le panier fournisseur relu confirme un produit et 2,49 €. Aucun créneau réservé, aucune commande validée, aucun paiement. Railway reste en démonstration.
+
+La modification des quantités a ensuite été vérifiée : deux sachets à 4,98 €, retour à un sachet à 2,49 €, puis retrait du produit de test et panier fournisseur revenu à 0,00 €. Les captures sont dans `.local/qa/leclerc-real-cart-success.png` et `.local/qa/leclerc-real-cart-empty.png` (exclues de Git).
+
+Le test a nécessité de distinguer le chemin canonique des pages du chemin utilisé par les mutations, de choisir le bon onglet dans Chrome et de décoder les entités HTML des libellés. Les ingrédients sans conditionnement compatible restent sans proposition automatique. Le classement exclut plusieurs dérivés et plats préparés trompeurs (infusion pour thym, purée pour potimarron, lait fermenté, poulet avec os), mais chaque correspondance reste à relire. Les promotions et l’optimisation de budget des phases ultérieures du brief ne sont pas activées.
+
+Les tests automatisés couvrent matcher, conversions, disponibilité, préférences, erreurs réseau/403/409/réponse invalide, parsing de fixtures, circuit breaker et parcours API de démonstration. Ils n’appellent pas Leclerc.
 
 ## Variables
 

@@ -20,6 +20,7 @@ export function RecipeDetail() {
       className="recipe-modal"
     >
       <FoodImage recipe={recipe} className="detail-image" />
+      <p className="photo-caption">Idée de présentation</p>
       <div className="detail-heading">
         <div>
           <h2>{recipe.name}</h2>

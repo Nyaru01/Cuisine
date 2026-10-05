@@ -64,18 +64,30 @@ export function FoodImage({
   recipe: Recipe;
   className?: string;
 }) {
+  const family = /^\/images\/(bake|fish|pasta|salad|soup|stew|vegetables)\.svg$/.exec(recipe.image)?.[1];
+  const name = recipe.name.toLocaleLowerCase("fr-FR");
+  const subject = family && family !== "soup" && family !== "salad"
+    ? /gratin|hachis/.test(name) ? "gratin"
+      : /poulet/.test(name) ? "chicken"
+        : /lentilles/.test(name) ? "lentils" : family
+    : family;
+  const photo = subject
+    ? `/images/${subject}.webp`
+    : recipe.image === "/images/harvest.svg"
+      ? "/images/family-table.webp"
+      : recipe.image;
   return (
     <img
       className={className}
-      src={recipe.image}
-      alt={`Illustration du plat : ${recipe.name}`}
+      src={photo}
+      alt={`Idée de présentation pour ${recipe.name}`}
       loading="lazy"
       width="640"
       height="420"
       onError={(e) => {
         const target = e.currentTarget;
-        if (!target.src.endsWith("/images/vegetables.svg"))
-          target.src = "/images/vegetables.svg";
+        if (!target.src.endsWith("/images/family-table.webp"))
+          target.src = "/images/family-table.webp";
       }}
     />
   );

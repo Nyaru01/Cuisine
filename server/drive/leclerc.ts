@@ -9,19 +9,20 @@ export class LeclercProvider implements DriveProvider {
   mode='live' as const;private failures=0;private openedUntil=0;private queue:Promise<unknown>=Promise.resolve();private last=0;
   private call<T>(operation:string,body:unknown,schema:z.ZodType<T>):Promise<T>{
     const task=async()=>{
-      if(Date.now()<this.openedUntil)throw new DriveProviderError('CIRCUIT_OPEN','E.Leclerc est temporairement indisponible. Votre liste reste disponible.');
+      if(operation!=='get_store'&&Date.now()<this.openedUntil)throw new DriveProviderError('CIRCUIT_OPEN','E.Leclerc est temporairement indisponible. Votre liste reste disponible.');
       const endpoint=process.env.LECLERC_CONNECTOR_URL,token=process.env.LECLERC_CONNECTOR_TOKEN;
       if(!endpoint||!token)throw new DriveProviderError('CONNECTOR_REQUIRED','Connectez le worker Leclerc et sa session pour utiliser le catalogue réel.');
       const wait=Math.max(0,Number(process.env.LECLERC_REQUEST_DELAY_MS||1200)-(Date.now()-this.last));await new Promise(r=>setTimeout(r,wait));this.last=Date.now();
       const started=Date.now();
       try{
         const response=await fetch(new URL(`/operations/${operation}`,endpoint),{method:'POST',headers:{'Content-Type':'application/json',Authorization:`Bearer ${token}`},body:JSON.stringify(body),signal:AbortSignal.timeout(Number(process.env.LECLERC_REQUEST_TIMEOUT_MS||15000))});
+        if(response.status===409){const issue=await response.json() as {error?:unknown};throw new DriveProviderError('BROWSER_SETUP',typeof issue.error==='string'?issue.error:'Ouvrez le magasin dans le Chrome dédié.',409);}
         if(!response.ok)throw new DriveProviderError(response.status===401||response.status===403?'AUTH_REQUIRED':response.status===429?'RATE_LIMIT':'UNAVAILABLE',response.status===401||response.status===403?'Reconnectez votre session sur le worker Leclerc.':'Le service Leclerc est indisponible.',response.status===401||response.status===403?409:503);
         let data:unknown;
         try{data=await response.json();}catch{throw new DriveProviderError('PROVIDER_CHANGED','Le format Leclerc a changé. Le connecteur doit être vérifié.');}
         const parsed=schema.safeParse(data);if(!parsed.success)throw new DriveProviderError('PROVIDER_CHANGED','Le format Leclerc a changé. Le connecteur doit être vérifié.');
-        this.failures=0;console.info(JSON.stringify({provider:'leclerc',operation,durationMs:Date.now()-started,success:true}));return parsed.data;
-      }catch(error){if(++this.failures>=3)this.openedUntil=Date.now()+60000;console.warn(JSON.stringify({provider:'leclerc',operation,durationMs:Date.now()-started,success:false}));if(error instanceof DriveProviderError)throw error;throw new DriveProviderError('TIMEOUT','Le connecteur Leclerc ne répond pas. Réessayez plus tard.');}
+        if(operation!=='get_store')this.failures=0;console.info(JSON.stringify({provider:'leclerc',operation,durationMs:Date.now()-started,success:true}));return parsed.data;
+      }catch(error){if(!(error instanceof DriveProviderError&&['BROWSER_SETUP','AUTH_REQUIRED'].includes(error.code))&&++this.failures>=3)this.openedUntil=Date.now()+60000;console.warn(JSON.stringify({provider:'leclerc',operation,durationMs:Date.now()-started,success:false}));if(error instanceof DriveProviderError)throw error;throw new DriveProviderError('TIMEOUT','Le connecteur Leclerc ne répond pas. Réessayez plus tard.');}
     };
     const next=this.queue.then(task,task);this.queue=next.catch(()=>{});return next;
   }

@@ -41,7 +41,7 @@ interface Auth {
   favorites?: string[];
   plan?: Plan;
 }
-function Login() {
+export function Login() {
   const {needRefresh:[needRefresh],updateServiceWorker}=useRegisterSW();
   const [error, setError] = useState(""),
     [pending, setPending] = useState(false),
@@ -49,7 +49,8 @@ function Login() {
   return (
     <div className="login-page">
       <div className="login-art">
-        <img src="/images/harvest.svg" alt="Légumes de saison" />
+        <img className="login-photo" src="/images/family-table.webp" alt="Une table accueillante, du pain et des légumes rôtis à partager" fetchPriority="high" />
+        <div className="login-story">
         <span className="brand">
           À Table<span>!</span>
         </span>
@@ -59,6 +60,7 @@ function Login() {
           se partagent.
         </h1>
         <p>Une semaine de repas, moins de charge mentale.</p>
+        </div>
       </div>
       <form
         onSubmit={async (e) => {
@@ -80,6 +82,7 @@ function Login() {
         }}
       >
         <span className="eyebrow">Bienvenue à la maison</span>
+        <div className="login-symbol" aria-hidden="true"><Leaf size={26} /></div>
         <h2>Retrouvons notre table.</h2>
         <p>Connectez-vous avec le compte Google d’un membre du foyer.</p>
         {needRefresh && <button type="button" className="button" onClick={()=>void updateServiceWorker(true)}>Actualiser l’application</button>}
@@ -88,10 +91,12 @@ function Login() {
             {error}
           </p>
         )}
-        <button className="button" disabled={pending}>
+        <button className="button google-button" disabled={pending}>
+          <svg aria-hidden="true" width="20" height="20" viewBox="0 0 24 24"><path fill="currentColor" d="M21.6 12.23c0-.71-.06-1.39-.18-2.05H12v3.88h5.38a4.6 4.6 0 0 1-2 3.02v2.51h3.24c1.9-1.75 2.98-4.33 2.98-7.36ZM12 22c2.7 0 4.96-.9 6.62-2.41l-3.24-2.51c-.9.6-2.05.96-3.38.96-2.6 0-4.8-1.76-5.58-4.12H3.08v2.59A10 10 0 0 0 12 22ZM6.42 13.92a6 6 0 0 1 0-3.84V7.49H3.08a10 10 0 0 0 0 9.02l3.34-2.59ZM12 5.96c1.47 0 2.79.5 3.83 1.51l2.87-2.87A9.61 9.61 0 0 0 12 2a10 10 0 0 0-8.92 5.49l3.34 2.59A6 6 0 0 1 12 5.96Z"/></svg>
           {pending ? "Connexion…" : "Continuer avec Google"}
           <ArrowRight size={18} />
         </button>
+        <span className="login-footnote">Votre carnet privé, partagé en famille.</span>
       </form>
     </div>
   );

@@ -1,4 +1,5 @@
 import type {DriveProduct,DriveCart} from '../../shared/drive.js';
+import {decodeHTML} from 'entities';
 export function jsonValue(text:string,start:number){
   const first=text[start];if(first!=='{'&&first!=='[')throw new Error('JSON absent');
   let depth=0,quoted=false,escaped=false;
@@ -26,10 +27,10 @@ export function packSize(label:string){
 }
 export function parseProducts(html:string):DriveProduct[]{
   return productRecords(html).flatMap(row=>{
-    const name=[row.sLibelleLigne1,row.sLibelleLigne2].filter(Boolean).join(' '),pack=packSize(name);
+    const name=decodeHTML([row.sLibelleLigne1,row.sLibelleLigne2].filter(Boolean).join(' ')),pack=packSize(name);
     if(!pack)return [];
     try{return [{id:String(row.iIdProduit),name,price:price(row.nrPVUnitaireTTC??row.sPrixUnitaire),available:Number(row.iQteDisponible)>0,...pack}];}catch{return [];}
-  }).slice(0,10);
+  }).slice(0,80);
 }
 export function parseCart(html:string):DriveCart{
   const position=html.indexOf('"lstProduits":');
@@ -39,7 +40,7 @@ export function parseCart(html:string):DriveCart{
   const items=array.map(entry=>{
     const row=(entry.objElement??entry) as Record<string,unknown>,quantity=Number(row.iQuantitePanier??row.iQtePanier),unitPrice=price(row.nrPVUnitaireTTC??row.sPrixUnitaire);
     if(!Number.isInteger(quantity)||quantity<0||!row.iIdProduit)throw new Error('Ligne panier invalide');
-    return {productId:String(row.iIdProduit),name:[row.sLibelleLigne1,row.sLibelleLigne2].filter(Boolean).join(' '),quantity,unitPrice,totalPrice:price(row.rTotalAPayer??row.sTotalAPayer??unitPrice*quantity)};
+    return {productId:String(row.iIdProduit),name:decodeHTML([row.sLibelleLigne1,row.sLibelleLigne2].filter(Boolean).join(' ')),quantity,unitPrice,totalPrice:price(row.rTotalAPayer??row.sTotalAPayer??unitPrice*quantity)};
   }).filter(i=>i.quantity>0);
   const light=html.indexOf('"lstProduitsLight":');if(light<0)throw new Error('Total panier absent');
   const lightArray=jsonValue(html,html.indexOf('[',light));

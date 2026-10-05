@@ -22,6 +22,7 @@ export function DrivePanel({week}:{week:string}){
     {mode==='mock'&&<p className="portions-note" role="status"><strong>Mode démonstration</strong> · Magasins, produits, prix et stocks fictifs pour tester le parcours. Aucun ajout chez E.Leclerc.</p>}
     {mode==='live'&&<p className="small-note">Connecteur expérimental, non officiel. Le catalogue et les prix proviennent de votre Drive.</p>}
     {status.error&&<p role="alert" className="form-error">{status.error.message}</p>}
+    {cart.error&&<div role="alert" className="form-error"><p>{cart.error.message}</p><button className="button secondary" onClick={()=>void cart.refetch()}>Relire le panier</button></div>}
     {error&&<p role="alert" className="form-error">{error}</p>}
     <form className="drive-actions" onSubmit={e=>{e.preventDefault();void run(async()=>{const stores=await api<DriveStore[]>(`/api/drive/leclerc/stores?q=${encodeURIComponent(search)}`);setFound({query:search,stores});});}}>
       <label className="field">Ville ou code postal<input required minLength={2} maxLength={120} value={search} onChange={e=>setSearch(e.target.value)}/></label><button className="button secondary" disabled={busy||Boolean(jobId&&job.data?.status==='adding_to_cart')}>Rechercher un Drive</button>
