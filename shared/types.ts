@@ -57,6 +57,7 @@ export interface Plan {
   meals: Meal[];
 }
 export interface ShoppingItem extends Ingredient {
+  manual: boolean;
   id: string;
   checked: boolean;
 }

@@ -80,6 +80,26 @@ test("API PostgreSQL : authentification, génération, verrouillage, remplacemen
     assert.equal(bootstrap.data.authenticated, true);
     assert.equal(bootstrap.data.recipes.length, catalog.data.length);
     const week = "2026-10-05";
+    const product = { name: "Café maison", quantity: 2, unit: "paquet", category: "Épicerie" };
+    assert.equal((await request(`/api/shopping-list/${week}/items`, "POST", product, false)).status, 401);
+    assert.equal((await request(`/api/shopping-list/${week}/items`, "POST", { ...product, quantity: 0 })).status, 400);
+    assert.equal((await request(`/api/shopping-list/${week}/items`, "POST", { ...product, name: "   " })).status, 400);
+    const manual = await request<ShoppingItem>(`/api/shopping-list/${week}/items`, "POST", product);
+    assert.equal(manual.status, 201);
+    assert.equal(manual.data.manual, true);
+    const foreignHousehold = await db.household.create({ data: { name: "Autre foyer de test" } });
+    const foreignPlan = await db.weeklyPlan.create({ data: { householdId: foreignHousehold.id, week, shoppingList: { create: { items: { create: { ...product, manual: true } } } } }, include: { shoppingList: { include: { items: true } } } });
+    const foreignId = foreignPlan.shoppingList!.items[0].id;
+    assert.equal((await request(`/api/shopping-list/items/${foreignId}`, "PUT", product)).status, 404);
+    assert.equal((await request(`/api/shopping-list/items/${foreignId}`, "PATCH", { checked: true })).status, 404);
+    assert.equal((await request(`/api/shopping-list/items/${foreignId}`, "DELETE")).status, 404);
+    assert.ok(!(await request<ShoppingItem[]>(`/api/shopping-list/${week}`)).data.some(i => i.id === foreignId));
+    const blank = (await request<Plan>(`/api/plans/${week}`)).data;
+    assert.equal(blank.version, 0);
+    assert.equal(blank.meals.length, 9);
+    assert.ok(blank.meals.every(m => !m.recipeId));
+    assert.equal((await request(`/api/shopping-list/${week}/items`, "POST", { ...product, name: " café   maison " })).status, 409);
+    await request(`/api/shopping-list/items/${manual.data.id}`, "PATCH", { checked: true });
     let plan = (
       await request<Plan>("/api/plans/generate", "POST", { week, version: 0 })
     ).data;
@@ -136,7 +156,18 @@ test("API PostgreSQL : authentification, génération, verrouillage, remplacemen
       .data;
     assert.ok(list.length > 10);
     assert.ok(list.every((i) => i.quantity > 0));
-    const item = list[0];
+    assert.equal(list.find(i => i.id === manual.data.id)?.checked, true);
+    assert.equal(list.find(i => i.id === manual.data.id)?.quantity, 2);
+    assert.equal((await request(`/api/shopping-list/items/${manual.data.id}`, "PUT", { ...product, quantity: 3 })).status, 200);
+    assert.equal((await request<ShoppingItem[]>(`/api/shopping-list/${week}`)).data.find(i => i.id === manual.data.id)?.checked, false);
+    const item = list.find(i => !i.manual)!;
+    assert.equal((await request(`/api/shopping-list/items/${item.id}`, "PUT", product)).status, 403);
+    assert.equal((await request(`/api/shopping-list/items/${item.id}`, "DELETE")).status, 403);
+    // A manual supplement of an ingredient does not overwrite its calculated row.
+    const sameIngredient = await request<ShoppingItem>(`/api/shopping-list/${week}/items`, "POST", { name: item.name, unit: item.unit, quantity: 1, category: "Autres" });
+    assert.equal(sameIngredient.status, 201);
+    assert.equal((await request(`/api/shopping-list/items/${sameIngredient.data.id}`, "PUT", product)).status, 409);
+    assert.equal((await request(`/api/shopping-list/items/${sameIngredient.data.id}`, "DELETE")).status, 200);
     assert.equal(
       (
         await request(`/api/shopping-list/items/${item.id}`, "PATCH", {
@@ -150,6 +181,7 @@ test("API PostgreSQL : authentification, génération, verrouillage, remplacemen
       headers: { Authorization: `Bearer ${deviceCookie}` },
     }).then((r) => r.json())) as ShoppingItem[];
     assert.equal(secondList.find((i) => i.id === item.id)?.checked, true);
+    assert.equal(secondList.find((i) => i.id === manual.data.id)?.quantity, 3);
     const fresh = (await fetch(base + `/api/plans/${week}`, {
       headers: { Authorization: `Bearer ${deviceCookie}` },
     }).then((r) => r.json())) as Plan;
@@ -207,6 +239,7 @@ test("API PostgreSQL : authentification, génération, verrouillage, remplacemen
         .data.household.adults,
       3,
     );
+    assert.equal((await request<ShoppingItem[]>(`/api/shopping-list/${week}`)).data.find(i => i.id === manual.data.id)?.quantity, 3);
     const draft={name:'Notre soupe maison',description:'Recette de test du foyer',preparationTime:10,cookingTime:20,servings:4,difficulty:'Facile',instructions:['Cuire les légumes.','Mixer.'],ingredients:[{name:'Carottes',quantity:400,unit:'g',category:'Fruits et légumes'}],seasons:['automne'],months:[9,10,11],allergens:[],vegetarian:true,childFriendly:true,protein:'légumes',starch:'aucun',light:true};
     const created=await request<Recipe>('/api/recipes','POST',draft);
     assert.equal(created.status,201);assert.equal(created.data.source,'custom');assert.equal(created.data.authorUid,'test-device1');
@@ -217,6 +250,9 @@ test("API PostgreSQL : authentification, génération, verrouillage, remplacemen
     assert.ok(stores[0].id.startsWith('demo-'));
     assert.equal((await request('/api/drive/leclerc/store','POST',{storeId:stores[0].id,query:'69140'})).status,200);
     const prepared=(await request<{id:string;proposals:import('../shared/drive.js').DriveProposal[]}>('/api/drive/leclerc/prepare','POST',{week})).data;
+    assert.ok(prepared.proposals.some(p => p.ingredientId === manual.data.id));
+    await request(`/api/shopping-list/items/${manual.data.id}`, "PUT", { ...product, quantity: 4 });
+    assert.equal((await request('/api/drive/leclerc/prepare/confirm', 'POST', { id: prepared.id, items: [{ ingredientId: manual.data.id, productId: 'demo-test', quantity: 1 }] })).status, 409);
     const selected=prepared.proposals.filter(p=>p.productId).slice(0,2).map(p=>({ingredientId:p.ingredientId,productId:p.productId,quantity:p.quantity}));
     assert.ok(selected.length>0);
     const confirm={id:prepared.id,items:selected};
@@ -230,6 +266,9 @@ test("API PostgreSQL : authentification, génération, verrouillage, remplacemen
     const driveItem=driveCart.items[0];
     assert.equal((await request(`/api/drive/leclerc/cart/items/${driveItem.productId}`,'PATCH',{quantity:2})).status,200);
     assert.equal((await request(`/api/drive/leclerc/cart/items/${driveItem.productId}`,'DELETE')).status,200);
+    assert.equal((await request(`/api/shopping-list/items/${manual.data.id}`, "DELETE")).status, 200);
+    assert.ok(!(await request<ShoppingItem[]>(`/api/shopping-list/${week}`)).data.some(i => i.id === manual.data.id));
+    assert.equal((await request(`/api/shopping-list/items/${manual.data.id}`, "PUT", product)).status, 404);
   } finally {
     await new Promise<void>((resolve, reject) =>
       server.close((e) => (e ? reject(e) : resolve())),

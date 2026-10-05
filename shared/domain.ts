@@ -82,7 +82,8 @@ export function scaledIngredients(recipe: Recipe, h: Household): Ingredient[] {
 export function displayQuantity(quantity: number, unit: string) {
   if ((unit === "g" || unit === "ml") && quantity >= 1000)
     return `${(quantity / 1000).toLocaleString("fr-FR", { maximumFractionDigits: 2 })} ${unit === "g" ? "kg" : "l"}`;
-  return `${quantity.toLocaleString("fr-FR", { maximumFractionDigits: 2 })} ${unit}`;
+  const label = quantity > 1 && ["pièce", "paquet", "bouteille", "boîte"].includes(unit) ? `${unit}s` : unit;
+  return `${quantity.toLocaleString("fr-FR", { maximumFractionDigits: 2 })} ${label}`;
 }
 const fish = [
   "saumon",

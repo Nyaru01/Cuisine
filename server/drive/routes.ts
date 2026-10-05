@@ -49,6 +49,12 @@ export function driveRouter(){
       if(row.storeId!==store?.id||(await getPlan(row.week,tx)).version!==row.planVersion)throw new ApiError(409,'Le Drive ou le menu a changé. Préparez une nouvelle proposition.');
       const proposals=row.proposals as unknown as DriveProposal[];
       if(new Set(body.items.map(i=>i.ingredientId)).size!==body.items.length||body.items.some(i=>!proposals.some(p=>p.ingredientId===i.ingredientId)))throw new ApiError(400,'Lignes de proposition invalides.');
+      const currentItems=await getShopping(row.week,tx);
+      if(body.items.some(selected=>{
+        const proposal=proposals.find(p=>p.ingredientId===selected.ingredientId)!;
+        const item=currentItems.find(i=>i.id===selected.ingredientId);
+        return !item||item.checked||item.name!==proposal.ingredient||item.quantity!==proposal.needed||item.unit!==proposal.unit;
+      }))throw new ApiError(409,'La liste de courses a changé. Préparez une nouvelle proposition.');
       launch=true;
       return tx.driveSyncJob.update({where:{id:row.id},data:{status:'adding_to_cart',total:body.items.length}});
     });

@@ -167,5 +167,6 @@ model ShoppingListItem {
   category String
   quantity Float
   checked Boolean @default(false)
-  @@unique([listId, name, unit])
+  manual Boolean @default(false)
+  @@unique([listId, name, unit, manual])
 }

@@ -44,3 +44,9 @@ Prompt commun des plats, où `{subject}` est remplacé par chaque sujet ci-desso
 | chicken | Mild homemade chicken curry, clearly recognizable pieces of chicken in a golden coconut curry sauce with carrots, served beside fluffy rice in a sage ceramic bowl |
 | gratin | A golden baked cauliflower and potato gratin in a shallow ivory ceramic baking dish, browned cheese and creamy vegetables, no pastry crust |
 | lentils | A generous bowl of cooked green lentils simmered with diced carrots and herbs, unmistakable small lentils visible, vegetarian, no meat |
+
+## Courses partagées
+
+La liste associe les ingrédients calculés du menu et les produits ajoutés par le foyer. Le bouton « Ajouter un produit » ouvre un formulaire mobile avec nom, quantité, unité et rayon. Les filtres « Tout », « À prendre » et « Nos ajouts » permettent de préparer les courses sans afficher de rayons vides.
+
+Les ajouts peuvent être modifiés ou supprimés depuis le crayon de leur ligne. Ils restent attachés à leur semaine lors d'une régénération du menu ou d'un changement des portions. L'ajout fonctionne aussi avant la création du menu. Les doublons manuels de même nom/unité sont signalés ; un supplément d'ingrédient reste une ligne distincte. La liste est partagée entre les deux appareils, avec actualisation périodique, et incluse dans l'impression et les propositions Drive. Une proposition Drive est refusée si une ligne sélectionnée a changé entre sa préparation et sa confirmation.

@@ -24,6 +24,7 @@ import {
   generateMeals,
   alternatives,
   compatible,
+  weekSlots,
 } from "../shared/domain.js";
 import type { Meal } from "../shared/types.js";
 import {
@@ -36,6 +37,13 @@ import {
 } from "./firebase-auth.js";
 import { saveRecipe } from "./recipes.js";
 import { driveRouter } from "./drive/routes.js";
+import { shoppingCategories, shoppingUnits } from "../shared/shopping.js";
+const shoppingProductSchema = z.object({
+  name: z.string().trim().min(1).max(100).transform(s => s.replace(/\s+/g, " ")),
+  quantity: z.number().positive().max(100000),
+  unit: z.enum(shoppingUnits),
+  category: z.enum(shoppingCategories),
+});
 const weekSchema = z
   .string()
   .regex(/^\d{4}-\d{2}-\d{2}$/)
@@ -324,6 +332,44 @@ export function createApp(options: { verifyToken?: TokenVerifier } = {}) {
   app.get("/api/shopping-list/:week", async (req, res) =>
     res.json(await getShopping(weekSchema.parse(req.params.week))),
   );
+  app.post("/api/shopping-list/:week/items", async (req, res) => {
+    const week = weekSchema.parse(req.params.week);
+    const body = shoppingProductSchema.parse(req.body);
+    const item = await familyWrite(async tx => {
+      // Shopping can start before the menu, without changing its version.
+      const plan = await tx.weeklyPlan.upsert({
+        where: { householdId_week: { householdId: "family", week } },
+        create: { householdId: "family", week, meals: { create: weekSlots(week).map(s => ({ date: s.date, period: s.period })) } },
+        update: {},
+      });
+      const list = await tx.shoppingList.upsert({ where: { planId: plan.id }, create: { planId: plan.id }, update: {} });
+      const existing = await tx.shoppingListItem.findFirst({ where: { listId: list.id, manual: true, name: { equals: body.name, mode: "insensitive" }, unit: body.unit } });
+      if (existing) throw new ApiError(409, "Ce produit figure déjà dans vos ajouts. Modifiez sa quantité depuis la liste.");
+      return tx.shoppingListItem.create({ data: { ...body, listId: list.id, manual: true } });
+    });
+    res.status(201).json(item);
+  });
+  app.put("/api/shopping-list/items/:id", async (req, res) => {
+    const body = shoppingProductSchema.parse(req.body);
+    const item = await familyWrite(async tx => {
+      const previous = await tx.shoppingListItem.findFirst({ where: { id: String(req.params.id), list: { plan: { householdId: "family" } } } });
+      if (!previous) throw new ApiError(404, "Article introuvable.");
+      if (!previous.manual) throw new ApiError(403, "Cet ingrédient est calculé à partir du menu.");
+      const duplicate = await tx.shoppingListItem.findFirst({ where: { listId: previous.listId, manual: true, id: { not: previous.id }, name: { equals: body.name, mode: "insensitive" }, unit: body.unit } });
+      if (duplicate) throw new ApiError(409, "Ce produit figure déjà dans vos ajouts.");
+      return tx.shoppingListItem.update({ where: { id: previous.id }, data: { ...body, checked: previous.quantity === body.quantity && previous.unit === body.unit && previous.name === body.name ? previous.checked : false } });
+    });
+    res.json(item);
+  });
+  app.delete("/api/shopping-list/items/:id", async (req, res) => {
+    await familyWrite(async tx => {
+      const item = await tx.shoppingListItem.findFirst({ where: { id: String(req.params.id), list: { plan: { householdId: "family" } } } });
+      if (!item) throw new ApiError(404, "Article introuvable.");
+      if (!item.manual) throw new ApiError(403, "Cet ingrédient est calculé à partir du menu.");
+      await tx.shoppingListItem.delete({ where: { id: item.id } });
+    });
+    res.json({ ok: true });
+  });
   app.patch("/api/shopping-list/items/:id", async (req, res) => {
     const body = z.object({ checked: z.boolean() }).parse(req.body);
     await familyWrite(async (tx) => {

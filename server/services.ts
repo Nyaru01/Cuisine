@@ -178,6 +178,7 @@ export async function reconcileShopping(planId: string, tx: Transaction) {
   await tx.shoppingListItem.deleteMany({
     where: {
       listId: list.id,
+      manual: false,
       id: {
         in: list.items
           .filter((i) => !keys.has(`${i.name}|${i.unit}`))
@@ -187,11 +188,11 @@ export async function reconcileShopping(planId: string, tx: Transaction) {
   });
   for (const item of items) {
     const previous = list.items.find(
-      (i) => i.name === item.name && i.unit === item.unit,
+      (i) => !i.manual && i.name === item.name && i.unit === item.unit,
     );
     await tx.shoppingListItem.upsert({
       where: {
-        listId_name_unit: { listId: list.id, name: item.name, unit: item.unit },
+        listId_name_unit_manual: { listId: list.id, name: item.name, unit: item.unit, manual: false },
       },
       create: { ...item, listId: list.id },
       update: {
@@ -202,8 +203,8 @@ export async function reconcileShopping(planId: string, tx: Transaction) {
     });
   }
 }
-export async function getShopping(week: string): Promise<ShoppingItem[]> {
-  const list = await db.shoppingList.findFirst({
+export async function getShopping(week: string, client: Transaction = db): Promise<ShoppingItem[]> {
+  const list = await client.shoppingList.findFirst({
     where: { plan: { householdId: "family", week } },
     include: { items: { orderBy: [{ category: "asc" }, { name: "asc" }] } },
   });

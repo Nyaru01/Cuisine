@@ -35,6 +35,7 @@ export default defineConfig({
       },
     }),
   ],
-  server: { proxy: { "/api": "http://127.0.0.1:3001" } },
+  // Keep the browser host so the API can validate same-origin writes in development.
+  server: { proxy: { "/api": { target: "http://127.0.0.1:3001", changeOrigin: false } } },
   build: { target: "es2022" },
 });
